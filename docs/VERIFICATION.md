@@ -3,7 +3,7 @@
 The project was built in an **offline Linux sandbox**: no internet, no Flutter/Dart SDK, and no FastAPI, Pydantic,
 pytest, Supabase or Gemini packages installed. Nothing here has run against live Supabase or Gemini.
 
-## Executed and passing in the sandbox (84 checks)
+## Executed and passing in the sandbox (83 tests plus manual checks)
 Run with a minimal pytest stand-in and, for the pipeline tests, a throwaway Pydantic stand-in (neither ships in this project):
 
 | Area | Tests | Result |
