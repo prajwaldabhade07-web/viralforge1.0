@@ -1,0 +1,12 @@
+{
+  "name": "ViralForge",
+  "short_name": "ViralForge",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#EDF0F5",
+  "theme_color": "#3A36E8",
+  "description": "See how your short-form video will land before you post it.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "icons": []
+}
