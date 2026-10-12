@@ -51,7 +51,7 @@ class SupabaseAuthService implements AuthService {
         }
       }
     }
-    return session.accessToken;
+    return session?.accessToken;
   }
 
   @override

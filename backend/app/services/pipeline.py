@@ -136,6 +136,8 @@ class AnalysisPipeline:
         except FileProcessingError as e:
             raise PipelineError("video_unprocessable", str(e)) from e
         except ProviderError as e:
+            if e.kind == "quota":
+                raise PipelineError("ai_quota_exceeded", str(e)) from e
             if stage == "moderation":
                 raise PipelineError("moderation_unavailable",
                                     "The safety check could not be completed, so nothing was analysed. Retry in a moment.",

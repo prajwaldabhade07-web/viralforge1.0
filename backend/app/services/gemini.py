@@ -19,9 +19,22 @@ class ModelUnavailable(Exception):
 
 
 class ProviderError(Exception):
-    def __init__(self, message: str, transient: bool):
+    def __init__(self, message: str, transient: bool, kind: str | None = None):
         super().__init__(message)
         self.transient = transient
+        self.kind = kind  # "quota" when the API key's quota for the model is exhausted
+
+
+_RETRY_RE = re.compile(r"retry in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", re.IGNORECASE)
+
+
+def retry_seconds(message: str) -> float | None:
+    """Parse Google's 'Please retry in 6h45m54.04s' hint; None when absent."""
+    m = _RETRY_RE.search(message or "")
+    if not m or not any(m.groups()):
+        return None
+    h, mn, sec = m.groups()
+    return int(h or 0) * 3600 + int(mn or 0) * 60 + float(sec or 0)
 
 
 class MalformedResponse(Exception):
@@ -130,7 +143,17 @@ class GoogleGenaiGateway:
             return ModelUnavailable("The Gemini API key was rejected. Check GEMINI_API_KEY in .env.")
         if code == 404:
             return ModelUnavailable(f"Model '{self.model}' is not available for this API key.")
-        if code == 429 or (isinstance(code, int) and code >= 500) or "timeout" in type(e).__name__.lower() \
+        if code == 429:
+            msg = str(e)
+            secs = retry_seconds(msg)
+            if (secs is not None and secs > 90) or "perday" in msg.lower().replace(" ", "").replace("_", ""):
+                when = f" It resets in about {int(secs // 3600)}h {int(secs % 3600 // 60)}m." if secs else ""
+                return ProviderError(
+                    f"The Gemini API quota for model '{self.model}' is used up.{when} Set GEMINI_MODEL in .env to "
+                    "another model, wait for the reset, or enable billing on the key's Google project.",
+                    transient=False, kind="quota")
+            return ProviderError("The AI service is rate limiting requests. Retrying shortly.", transient=True)
+        if (isinstance(code, int) and code >= 500) or "timeout" in type(e).__name__.lower() \
                 or "connect" in type(e).__name__.lower():
             return ProviderError("The AI service is busy or unreachable.", transient=True)
         return ProviderError(f"The AI service rejected the request ({type(e).__name__}).", transient=False)
