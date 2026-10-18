@@ -7,9 +7,15 @@ def test_valid_upload_is_private_and_owned(client, alice, container):
     r = upload(client, alice, p["id"])
     assert r.status_code == 201
     body = r.json()
-    assert body["mime_type"] == "video/mp4" and body["duration_seconds"] == 12 and "storage_path" not in body
+    assert (
+        body["mime_type"] == "video/mp4"
+        and body["duration_seconds"] == 12
+        and "storage_path" not in body
+    )
     (path,) = container.storage.objects
-    assert path.startswith(f"11111111-1111-1111-1111-111111111111/{p['id']}/") and path.endswith(".mp4")
+    assert path.startswith(f"11111111-1111-1111-1111-111111111111/{p['id']}/") and path.endswith(
+        ".mp4"
+    )
     assert upload(client, alice, p["id"], webm_bytes(8), "a.webm", "video/webm").status_code == 201
 
 
@@ -21,7 +27,13 @@ def test_rejects_invalid_uploads(client, alice, container):
         (mp4_bytes(), "clip.mp4", "video/webm", 422, "mime_mismatch"),
         (mp4_bytes(300), "long.mp4", "video/mp4", 422, "video_too_long"),
         (b"", "empty.mp4", "video/mp4", 422, "empty_or_tiny_file"),
-        (mp4_bytes(pad=6 * 1024 * 1024), "big.mp4", "video/mp4", 413, "file_too_large"),  # limit is 5 MB in tests
+        (
+            mp4_bytes(pad=6 * 1024 * 1024),
+            "big.mp4",
+            "video/mp4",
+            413,
+            "file_too_large",
+        ),  # limit is 5 MB in tests
     ]
     for data, name, mime, status, code in cases:
         r = upload(client, alice, p["id"], data, name, mime)
@@ -57,7 +69,10 @@ def test_delete_video_removes_file(client, alice, container):
     p = make_project(client, alice)
     v = make_video(client, alice, p["id"])
     assert client.delete(f"{API}/videos/{v['id']}", headers=alice).status_code == 204
-    assert container.storage.objects == {} and client.get(f"{API}/videos/{v['id']}", headers=alice).status_code == 404
+    assert (
+        container.storage.objects == {}
+        and client.get(f"{API}/videos/{v['id']}", headers=alice).status_code == 404
+    )
 
 
 def test_cannot_delete_video_being_analysed(client, alice):
@@ -74,7 +89,11 @@ def test_upload_rate_limit(alice, client, container):
     assert upload(client, alice, p["id"]).status_code == 201
     assert upload(client, alice, p["id"]).status_code == 201
     r = upload(client, alice, p["id"])
-    assert r.status_code == 429 and r.json()["error"]["code"] == "rate_limited" and "retry-after" in r.headers
+    assert (
+        r.status_code == 429
+        and r.json()["error"]["code"] == "rate_limited"
+        and "retry-after" in r.headers
+    )
 
 
 def test_list_videos(client, alice):

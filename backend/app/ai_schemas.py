@@ -1,5 +1,6 @@
 """Schemas the model must fill. Kept free of Field constraints/defaults so they convert cleanly
 to Gemini's response schema; ranges and completeness are enforced by the validators below."""
+
 from typing import Literal
 
 from pydantic import BaseModel, field_validator, model_validator
@@ -7,14 +8,29 @@ from pydantic import BaseModel, field_validator, model_validator
 from app.services.scoring import DIMENSION_KEYS
 
 DimensionKey = Literal[
-    "hook_strength", "clarity", "emotional_appeal", "entertainment_value",
-    "information_value", "audience_retention", "shareability",
+    "hook_strength",
+    "clarity",
+    "emotional_appeal",
+    "entertainment_value",
+    "information_value",
+    "audience_retention",
+    "shareability",
 ]
-ObservationArea = Literal["visual_storytelling", "pacing", "opening_hook", "audio_speech", "on_screen_text"]
+ObservationArea = Literal[
+    "visual_storytelling", "pacing", "opening_hook", "audio_speech", "on_screen_text"
+]
 ModerationCategory = Literal[
-    "sexual_content", "sexual_content_involving_minors", "graphic_violence", "violent_extremism",
-    "hate_or_harassment", "self_harm_promotion", "illegal_activity", "dangerous_weapons_or_drugs",
-    "fraud_or_scam", "privacy_violation", "other",
+    "sexual_content",
+    "sexual_content_involving_minors",
+    "graphic_violence",
+    "violent_extremism",
+    "hate_or_harassment",
+    "self_harm_promotion",
+    "illegal_activity",
+    "dangerous_weapons_or_drugs",
+    "fraud_or_scam",
+    "privacy_violation",
+    "other",
 ]
 
 
@@ -67,7 +83,9 @@ class ContentAnalysis(BaseModel):
     def _complete(self):
         keys = sorted(d.key for d in self.dimensions)
         if keys != sorted(DIMENSION_KEYS):
-            raise ValueError("dimensions must contain each of the seven dimension keys exactly once")
+            raise ValueError(
+                "dimensions must contain each of the seven dimension keys exactly once"
+            )
         for name in ("strengths", "weaknesses", "recommendations"):
             if not 1 <= len(getattr(self, name)) <= 10:
                 raise ValueError(f"{name} must contain 1 to 10 items")

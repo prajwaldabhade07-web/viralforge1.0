@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'api/auth_service.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/new_analysis_screen.dart';
 import 'screens/project_screen.dart';
@@ -35,8 +36,10 @@ GoRouter buildRouter(AuthService auth) {
     initialLocation: '/projects',
     refreshListenable: refresh,
     redirect: (context, state) {
-      final onLogin = state.matchedLocation == '/login';
-      if (!auth.isSignedIn && !onLogin) return '/login';
+      final loc = state.matchedLocation;
+      final onLogin = loc == '/login';
+      final onPublic = onLogin || loc == '/forgot-password';
+      if (!auth.isSignedIn && !onPublic) return '/login';
       if (auth.isSignedIn && onLogin) return '/projects';
       return null;
     },
@@ -52,6 +55,7 @@ GoRouter buildRouter(AuthService auth) {
     ),
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const AuthScreen()),
+      GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
         routes: [

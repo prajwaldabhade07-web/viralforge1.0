@@ -1,7 +1,8 @@
 """In-memory stand-ins for Supabase, Gemini and auth so tests need no network or credits."""
+
 import copy
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from app.ai_schemas import ContentAnalysis, ModerationVerdict, PersonaReaction, PersonaSimulation
@@ -17,12 +18,17 @@ ACTIVE = ("queued", "processing")
 
 
 def now_iso():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 class InMemoryRepo:
     def __init__(self):
-        self.tables: dict[str, list[dict]] = {"projects": [], "videos": [], "analysis_jobs": [], "reports": []}
+        self.tables: dict[str, list[dict]] = {
+            "projects": [],
+            "videos": [],
+            "analysis_jobs": [],
+            "reports": [],
+        }
 
     # -- helpers
     @staticmethod
@@ -54,8 +60,15 @@ class InMemoryRepo:
         if table in ("projects", "analysis_jobs"):
             row.setdefault("updated_at", ts)
         if table == "analysis_jobs":
-            for k, v in {"run_after": ts, "locked_at": None, "started_at": None, "completed_at": None,
-                         "error_code": None, "error_message": None, "attempts": 0}.items():
+            for k, v in {
+                "run_after": ts,
+                "locked_at": None,
+                "started_at": None,
+                "completed_at": None,
+                "error_code": None,
+                "error_message": None,
+                "attempts": 0,
+            }.items():
                 row.setdefault(k, v)
         if table == "projects":
             for k in ("description", "platform", "niche", "target_audience"):
@@ -69,7 +82,7 @@ class InMemoryRepo:
         if order:
             rows.sort(key=lambda r: (r.get(order) is None, r.get(order)), reverse=desc)
         if limit is not None:
-            rows = rows[offset:offset + limit]
+            rows = rows[offset : offset + limit]
         return copy.deepcopy(rows)
 
     def count(self, table, where=None):
@@ -98,26 +111,51 @@ class InMemoryRepo:
                     if j.get("video_id") == r["id"]:
                         j["video_id"] = None
             if table == "analysis_jobs":
-                self.tables["reports"] = [x for x in self.tables["reports"] if x["job_id"] != r["id"]]
+                self.tables["reports"] = [
+                    x for x in self.tables["reports"] if x["job_id"] != r["id"]
+                ]
         return len(victims)
 
     def claim_next_job(self, lease_seconds):
         """Python port of the SQL claim_next_job() semantics."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         parse = datetime.fromisoformat
-        stale = lambda j: j["status"] == "processing" and j["locked_at"] and \
-            (now - parse(j["locked_at"])).total_seconds() > lease_seconds
+
+        def stale(j):
+            return bool(
+                j["status"] == "processing"
+                and j["locked_at"]
+                and (now - parse(j["locked_at"])).total_seconds() > lease_seconds
+            )
+
         for j in self.tables["analysis_jobs"]:
             if stale(j) and j["attempts"] >= j["max_attempts"]:
-                j.update(status="failed", stage="failed", locked_at=None, completed_at=now_iso(),
-                         error_code="worker_timeout", error_message="The analysis stopped unexpectedly. Retry the analysis.")
-        runnable = [j for j in self.tables["analysis_jobs"]
-                    if (j["status"] == "queued" and parse(j["run_after"]) <= now) or stale(j)]
+                j.update(
+                    status="failed",
+                    stage="failed",
+                    locked_at=None,
+                    completed_at=now_iso(),
+                    error_code="worker_timeout",
+                    error_message="The analysis stopped unexpectedly. Retry the analysis.",
+                )
+        runnable = [
+            j
+            for j in self.tables["analysis_jobs"]
+            if (j["status"] == "queued" and parse(j["run_after"]) <= now) or stale(j)
+        ]
         if not runnable:
             return None
         j = sorted(runnable, key=lambda x: x["created_at"])[0]
-        j.update(status="processing", stage="validating", progress=5, attempts=j["attempts"] + 1,
-                 locked_at=now_iso(), started_at=j["started_at"] or now_iso(), error_code=None, error_message=None)
+        j.update(
+            status="processing",
+            stage="validating",
+            progress=5,
+            attempts=j["attempts"] + 1,
+            locked_at=now_iso(),
+            started_at=j["started_at"] or now_iso(),
+            error_code=None,
+            error_message=None,
+        )
         return copy.deepcopy(j)
 
 
@@ -144,37 +182,71 @@ class InMemoryStorage:
 
 
 class FakeAuth:
-    USERS = {"token-alice": CurrentUser("11111111-1111-1111-1111-111111111111", "alice@example.com"),
-             "token-bob": CurrentUser("22222222-2222-2222-2222-222222222222", "bob@example.com")}
+    USERS = {
+        "token-alice": CurrentUser("11111111-1111-1111-1111-111111111111", "alice@example.com"),
+        "token-bob": CurrentUser("22222222-2222-2222-2222-222222222222", "bob@example.com"),
+    }
 
     def verify(self, token):
         if token not in self.USERS:
-            raise AppError(401, "invalid_token", "Your session is invalid or has expired. Sign in again.")
+            raise AppError(
+                401, "invalid_token", "Your session is invalid or has expired. Sign in again."
+            )
         return self.USERS[token]
 
 
 def good_analysis() -> dict:
     return {
         "content_summary": "A creator shows a 3-step budget meal prep. Fast cuts, text overlays, upbeat music.",
-        "dimensions": [{"key": k, "score": s, "rationale": f"Rationale for {k}."}
-                       for k, s in zip(DIMENSION_KEYS, (8, 7, 6, 7, 8, 6, 5))],
+        "dimensions": [
+            {"key": k, "score": s, "rationale": f"Rationale for {k}."}
+            for k, s in zip(DIMENSION_KEYS, (8, 7, 6, 7, 8, 6, 5), strict=True)
+        ],
         "strengths": ["Strong first second", "Clear steps"],
         "weaknesses": ["Ending lacks a call to action"],
         "recommendations": [
-            {"priority": 2, "title": "Add a payoff", "detail": "Show the finished meal at the end.", "expected_impact": "medium"},
-            {"priority": 1, "title": "Tighten the middle", "detail": "Cut seconds 12-18.", "expected_impact": "high"}],
-        "observations": [{"area": "opening_hook", "observation": "Opens on the finished dish.", "evidence": "0:00-0:02"}],
-        "confidence": "high", "confidence_note": "Clear audio and visuals.",
+            {
+                "priority": 2,
+                "title": "Add a payoff",
+                "detail": "Show the finished meal at the end.",
+                "expected_impact": "medium",
+            },
+            {
+                "priority": 1,
+                "title": "Tighten the middle",
+                "detail": "Cut seconds 12-18.",
+                "expected_impact": "high",
+            },
+        ],
+        "observations": [
+            {
+                "area": "opening_hook",
+                "observation": "Opens on the finished dish.",
+                "evidence": "0:00-0:02",
+            }
+        ],
+        "confidence": "high",
+        "confidence_note": "Clear audio and visuals.",
     }
 
 
 def reaction(pid) -> PersonaReaction:
-    return PersonaReaction(persona_id=pid, first_impression="Catchy.", interest_level=7, likely_action="like",
-                           would_finish=True, reaction="Would watch to the end.", concern="Some jargon.")
+    return PersonaReaction(
+        persona_id=pid,
+        first_impression="Catchy.",
+        interest_level=7,
+        likely_action="like",
+        would_finish=True,
+        reaction="Would watch to the end.",
+        concern="Some jargon.",
+    )
 
 
 class FakeGemini:
-    """Scripted Gemini. `errors[SchemaName]` may hold an exception or a list consumed in order."""
+    """Scripted Gemini. `errors[SchemaName]` may hold an exception or a list consumed in order.
+
+    A bare exception is raised on EVERY call; use a list to fail only N times.
+    """
 
     def __init__(self):
         self.calls: list[str] = []
@@ -216,19 +288,34 @@ class FakeGemini:
             return self.verdict
         if schema is ContentAnalysis:
             return ContentAnalysis(**self.analysis)
-        ids = self.persona_batches.pop(0) if len(self.persona_batches) > 1 else self.persona_batches[0]
+        ids = (
+            self.persona_batches.pop(0)
+            if len(self.persona_batches) > 1
+            else self.persona_batches[0]
+        )
         return PersonaSimulation(reactions=[reaction(i) for i in ids])
 
 
 def make_settings(**over) -> Settings:
-    base = dict(supabase_url="http://supabase.test", supabase_service_role_key="service-test",
-                gemini_api_key="gemini-test", gemini_model="gemini-test-model", worker_enabled=False,
-                max_upload_mb=5, rate_limit_per_minute=1000)
+    base = dict(
+        supabase_url="http://supabase.test",
+        supabase_service_role_key="service-test",
+        gemini_api_key="gemini-test",
+        gemini_model="gemini-test-model",
+        worker_enabled=False,
+        max_upload_mb=5,
+        rate_limit_per_minute=1000,
+    )
     return Settings(_env_file=None, **{**base, **over})
 
 
 def make_container(**over) -> Container:
-    c = Container(settings=make_settings(**over), repo=InMemoryRepo(), storage=InMemoryStorage(),
-                  auth=FakeAuth(), gemini=FakeGemini())
+    c = Container(
+        settings=make_settings(**over),
+        repo=InMemoryRepo(),
+        storage=InMemoryStorage(),
+        auth=FakeAuth(),
+        gemini=FakeGemini(),
+    )
     c.refresh_model_status()
     return c

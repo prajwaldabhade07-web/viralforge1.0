@@ -1,5 +1,6 @@
 """Deterministic scoring. The model only rates seven dimensions (integers 1-10); every
 derived and overall score is computed here with explicit rounding. See docs/SCORING.md."""
+
 from decimal import ROUND_HALF_UP, Decimal
 
 DIMENSION_KEYS = (
@@ -44,7 +45,13 @@ DIMENSION_SCALE = (
     "1-2 very weak, 3-4 weak, 5-6 average for the platform, 7-8 strong, 9-10 exceptional. "
     "Use 9-10 rarely; most competent videos land between 4 and 8."
 )
-BANDS = ((90, "Exceptional"), (75, "Strong"), (60, "Promising"), (40, "Developing"), (0, "Needs rework"))
+BANDS = (
+    (90, "Exceptional"),
+    (75, "Strong"),
+    (60, "Promising"),
+    (40, "Developing"),
+    (0, "Needs rework"),
+)
 
 RUBRIC = {
     "dimension_scale": "1-10 (integers), assigned by the AI for each dimension",
@@ -97,6 +104,11 @@ def compute_scores(dimensions: dict[str, int]) -> dict[str, int]:
     engagement = _round(sum(d[k] for k in ENGAGEMENT_INPUTS) / Decimal(len(ENGAGEMENT_INPUTS)) * 10)
     retention = _round(d["audience_retention"] * 10)
     shareability = _round(d["shareability"] * 10)
-    parts = {"hook": hook, "engagement": engagement, "retention": retention, "shareability": shareability}
+    parts = {
+        "hook": hook,
+        "engagement": engagement,
+        "retention": retention,
+        "shareability": shareability,
+    }
     overall = _round(sum(OVERALL_WEIGHTS[k] * Decimal(v) for k, v in parts.items()))
     return {**parts, "overall": overall}

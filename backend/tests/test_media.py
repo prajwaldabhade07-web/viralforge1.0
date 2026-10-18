@@ -3,7 +3,12 @@ import pytest
 from app.services.media import MediaError, validate_upload
 from tests.samples import mp4_bytes, webm_bytes
 
-KW = dict(allowed_extensions=["mp4", "webm", "mov"], max_bytes=50 * 1024 * 1024, min_seconds=1, max_seconds=90)
+KW = dict(
+    allowed_extensions=["mp4", "webm", "mov"],
+    max_bytes=50 * 1024 * 1024,
+    min_seconds=1,
+    max_seconds=90,
+)
 
 
 def check(name, data, mime="video/mp4", **over):
@@ -51,7 +56,9 @@ def test_renamed_non_video_rejected():
 
 
 def test_extension_must_match_contents():
-    assert code_of(lambda: check("clip.webm", mp4_bytes(), mime="video/webm")) == "extension_mismatch"
+    assert (
+        code_of(lambda: check("clip.webm", mp4_bytes(), mime="video/webm")) == "extension_mismatch"
+    )
 
 
 def test_declared_mime_must_match_contents():
@@ -65,7 +72,10 @@ def test_audio_and_image_brands_rejected():
 
 
 def test_matroska_rejected():
-    assert code_of(lambda: check("a.webm", webm_bytes(doctype=b"matroska"), mime="video/webm")) == "unsupported_media"
+    assert (
+        code_of(lambda: check("a.webm", webm_bytes(doctype=b"matroska"), mime="video/webm"))
+        == "unsupported_media"
+    )
 
 
 def test_size_limits():
@@ -81,6 +91,9 @@ def test_duration_limits():
 
 def test_truncated_or_corrupt_container():
     data = mp4_bytes()
-    ftyp_only = data[:data.index(b"moov") - 4] + b"\x00" * 2000
+    ftyp_only = data[: data.index(b"moov") - 4] + b"\x00" * 2000
     assert code_of(lambda: check("a.mp4", ftyp_only)) == "duration_unreadable"
-    assert code_of(lambda: check("a.webm", webm_bytes()[:30] + b"\x00" * 2000, mime="video/webm")) == "duration_unreadable"
+    assert (
+        code_of(lambda: check("a.webm", webm_bytes()[:30] + b"\x00" * 2000, mime="video/webm"))
+        == "duration_unreadable"
+    )

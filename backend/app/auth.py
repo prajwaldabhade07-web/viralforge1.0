@@ -1,4 +1,5 @@
 """Bearer-token verification through Supabase Auth (server-side `get_user`)."""
+
 import hashlib
 import time
 from dataclasses import dataclass
@@ -35,14 +36,22 @@ class SupabaseAuthVerifier:
             res = self.client.auth.get_user(token)
             user = getattr(res, "user", None)
             if user is None:
-                raise AppError(401, "invalid_token", "Your session is invalid or has expired. Sign in again.")
+                raise AppError(
+                    401, "invalid_token", "Your session is invalid or has expired. Sign in again."
+                )
         except AppError:
             raise
         except Exception as e:  # noqa: BLE001
             status = getattr(e, "status", None)
             if status in (400, 401, 403) or "Auth" in type(e).__name__:
-                raise AppError(401, "invalid_token", "Your session is invalid or has expired. Sign in again.") from e
-            raise AppError(503, "auth_unavailable", "Could not reach the authentication service. Try again shortly.") from e
+                raise AppError(
+                    401, "invalid_token", "Your session is invalid or has expired. Sign in again."
+                ) from e
+            raise AppError(
+                503,
+                "auth_unavailable",
+                "Could not reach the authentication service. Try again shortly.",
+            ) from e
         cu = CurrentUser(id=str(user.id), email=getattr(user, "email", None))
         if len(self._cache) > 1000:
             self._cache.clear()

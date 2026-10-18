@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../util/format.dart';
 import 'common.dart';
 import 'frame_strip.dart';
+import 'fx.dart';
 
 const _scoreRows = <(String, String)>[
   ('hook', 'Hook'),
@@ -40,22 +41,25 @@ class ReportView extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _VerdictBand(report: report),
       const SizedBox(height: 16),
-      Panel(
-        child: Column(children: [
-          for (var i = 0; i < _scoreRows.length; i++) ...[
-            if (i > 0) const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Divider()),
-            _ScoreRow(
-              label: _scoreRows[i].$2,
-              score: scores[_scoreRows[i].$1] ?? 0,
-              formula: report.formulas[_scoreRows[i].$1] ?? '',
-            ),
-          ],
-        ]),
+      Reveal(
+        delayMs: 200,
+        child: Panel(
+          child: Column(children: [
+            for (var i = 0; i < _scoreRows.length; i++) ...[
+              if (i > 0) const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Divider()),
+              _ScoreRow(
+                label: _scoreRows[i].$2,
+                score: scores[_scoreRows[i].$1] ?? 0,
+                formula: report.formulas[_scoreRows[i].$1] ?? '',
+              ),
+            ],
+          ]),
+        ),
       ),
       const SizedBox(height: 12),
       _Rubric(report: report),
       const SectionTitle('What the AI saw'),
-      Panel(child: Text(report.summary, style: const TextStyle(height: 1.55, fontSize: 15))),
+      Reveal(child: Panel(child: Text(report.summary, style: const TextStyle(height: 1.55, fontSize: 15)))),
       const SectionTitle('Strengths and weaknesses'),
       LayoutBuilder(builder: (context, c) {
         final two = c.maxWidth > 720;
@@ -66,7 +70,7 @@ class ReportView extends StatelessWidget {
             : Column(children: [good, const SizedBox(height: 12), bad]);
       }),
       const SectionTitle('What to change first'),
-      _Recommendations(items: report.recommendations),
+      Reveal(child: _Recommendations(items: report.recommendations)),
       const SectionTitle('Seven ratings behind the scores'),
       _Dimensions(items: report.dimensions),
       if (report.observations.isNotEmpty) ...[
@@ -88,7 +92,7 @@ class _VerdictBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final meta = [platformLabel(report.platform), report.niche, if (report.inputType == 'script') 'script only'].where((e) => e.isNotEmpty).join(', ');
-    return Panel(
+    final band = Panel(
       color: Tk.ink,
       borderColor: Tk.ink,
       padding: const EdgeInsets.all(28),
@@ -98,7 +102,9 @@ class _VerdictBand extends StatelessWidget {
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Semantics(
             label: 'Overall score ${report.overall} out of 100',
-            child: ExcludeSemantics(child: Text('${report.overall}', style: display(96, color: Colors.white, height: 0.95, spacing: -3))),
+            child: ExcludeSemantics(
+              child: CountUp(value: report.overall, style: display(96, color: Colors.white, height: 0.95, spacing: -3)),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.only(left: 8, bottom: 10),
@@ -113,6 +119,15 @@ class _VerdictBand extends StatelessWidget {
         Text(meta, style: const TextStyle(color: Color(0xFFC3CAE0), fontSize: 14)),
       ]),
     );
+    return Stack(children: [
+      band,
+      if (Fx.enabled && report.overall >= 60)
+        Positioned.fill(
+          child: IgnorePointer(
+            child: ClipRRect(borderRadius: BorderRadius.circular(Tk.radius), child: const ConfettiBurst()),
+          ),
+        ),
+    ]);
   }
 }
 
@@ -340,7 +355,7 @@ class _PersonasSection extends StatelessWidget {
         final cols = c.maxWidth > 760 ? 2 : 1;
         final w = (c.maxWidth - (cols - 1) * 14) / cols;
         return Wrap(spacing: 14, runSpacing: 14, children: [
-          for (final p in personas.items) SizedBox(width: w, child: _PersonaCard(p)),
+          for (final p in personas.items) SizedBox(width: w, child: HoverLift(child: _PersonaCard(p))),
         ]);
       }),
     ]);

@@ -1,5 +1,6 @@
 """Assemble the final Viral Readiness Report from validated model output."""
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from app.services import personas as personas_mod
 from app.services.scoring import DIMENSION_LABELS, RUBRIC, band_for, compute_scores
@@ -32,12 +33,16 @@ def build_report(
     dims = {d["key"]: d for d in analysis["dimensions"]}
     scores = compute_scores({k: int(v["score"]) for k, v in dims.items()})
     ordered_dims = [
-        {"key": k, "label": DIMENSION_LABELS[k], "score": int(dims[k]["score"]),
-         "rationale": _clip(dims[k]["rationale"])}
+        {
+            "key": k,
+            "label": DIMENSION_LABELS[k],
+            "score": int(dims[k]["score"]),
+            "rationale": _clip(dims[k]["rationale"]),
+        }
         for k in DIMENSION_LABELS
     ]
     recs = sorted(analysis["recommendations"], key=lambda r: int(r["priority"]))
-    generated = (now or datetime.now(timezone.utc)).isoformat()
+    generated = (now or datetime.now(UTC)).isoformat()
     return {
         "schema_version": SCHEMA_VERSION,
         "input_type": job["input_type"],
@@ -53,12 +58,20 @@ def build_report(
         "strengths": [_clip(s) for s in analysis["strengths"]],
         "weaknesses": [_clip(s) for s in analysis["weaknesses"]],
         "recommendations": [
-            {"priority": i + 1, "title": _clip(r["title"], 160), "detail": _clip(r["detail"]),
-             "expected_impact": r["expected_impact"]}
+            {
+                "priority": i + 1,
+                "title": _clip(r["title"], 160),
+                "detail": _clip(r["detail"]),
+                "expected_impact": r["expected_impact"],
+            }
             for i, r in enumerate(recs)
         ],
         "observations": [
-            {"area": o["area"], "observation": _clip(o["observation"]), "evidence": _clip(o["evidence"], 300)}
+            {
+                "area": o["area"],
+                "observation": _clip(o["observation"]),
+                "evidence": _clip(o["evidence"], 300),
+            }
             for o in analysis["observations"]
         ],
         "confidence": analysis["confidence"],

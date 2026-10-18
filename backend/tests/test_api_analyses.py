@@ -1,6 +1,6 @@
 from app.ai_schemas import ModerationVerdict
 from app.services.gemini import MalformedResponse
-from tests.api_helpers import ANALYSIS, API, make_project, make_video, start_analysis, upload
+from tests.api_helpers import ANALYSIS, API, make_project, make_video, start_analysis
 
 
 def setup_video(client, headers):
@@ -21,7 +21,7 @@ def test_full_workflow_video_to_report_history_and_isolation(client, alice, bob,
     p, v = setup_video(client, alice)
     job = start_analysis(client, alice, p["id"], v["id"]).json()
     assert client.get(f"{API}/analyses/{job['id']}", headers=alice).json()["status"] == "queued"
-    assert client.get(f"{API}/analyses/{job['id']}/report", headers=alice).status_code == 404  # not ready
+    assert client.get(f"{API}/analyses/{job['id']}/report", headers=alice).status_code == 404
 
     assert worker.run_once()
     got = client.get(f"{API}/analyses/{job['id']}", headers=alice).json()
@@ -35,7 +35,9 @@ def test_full_workflow_video_to_report_history_and_isolation(client, alice, bob,
     assert r.status_code == 200 and r.json()["scores"] == report["scores"]
 
     hist = client.get(f"{API}/history", headers=alice).json()
-    assert hist["total"] == 1 and hist["items"][0]["scores"]["overall"] == report["scores"]["overall"]
+    assert (
+        hist["total"] == 1 and hist["items"][0]["scores"]["overall"] == report["scores"]["overall"]
+    )
     assert hist["items"][0]["project_name"] == p["name"]
     assert client.get(f"{API}/projects/{p['id']}/analyses", headers=alice).json()["total"] == 1
     assert client.get(f"{API}/projects/{p['id']}", headers=alice).json()["analysis_count"] == 1
@@ -81,10 +83,17 @@ def test_input_validation(client, alice):
 
 def test_script_analysis_runs_without_video(client, alice, worker, container):
     p = make_project(client, alice)
-    body = {"input_type": "script", "script_text": "Scene 1: a surprising hook about saving money. " * 3, **ANALYSIS}
+    body = {
+        "input_type": "script",
+        "script_text": "Scene 1: a surprising hook about saving money. " * 3,
+        **ANALYSIS,
+    }
     job = client.post(f"{API}/projects/{p['id']}/analyses", json=body, headers=alice).json()
     worker.run_once()
-    assert client.get(f"{API}/analyses/{job['id']}", headers=alice).json()["report"]["input_type"] == "script"
+    assert (
+        client.get(f"{API}/analyses/{job['id']}", headers=alice).json()["report"]["input_type"]
+        == "script"
+    )
     assert container.gemini.uploads == []
 
 
@@ -92,7 +101,10 @@ def test_video_must_belong_to_the_project_and_user(client, alice, bob):
     p, v = setup_video(client, alice)
     other = make_project(client, alice, "Other")
     assert start_analysis(client, alice, other["id"], v["id"]).status_code == 404
-    assert start_analysis(client, alice, p["id"], "00000000-0000-0000-0000-000000000000").status_code == 404
+    assert (
+        start_analysis(client, alice, p["id"], "00000000-0000-0000-0000-000000000000").status_code
+        == 404
+    )
 
 
 def test_unavailable_model_gives_clear_error_and_no_job(client, alice, container):
@@ -101,19 +113,49 @@ def test_unavailable_model_gives_clear_error_and_no_job(client, alice, container
     container.model_status.checked_at = 0
     r = start_analysis(client, alice, p["id"], v["id"])
     assert r.status_code == 503 and r.json()["error"]["code"] == "model_unavailable"
-    assert "not available" in r.json()["error"]["message"] and container.repo.tables["analysis_jobs"] == []
+    assert "not available" in r.json()["error"]["message"]
+    assert container.repo.tables["analysis_jobs"] == []
 
 
 def test_failed_job_can_be_retried(client, alice, worker, container):
     p, v = setup_video(client, alice)
     job = start_analysis(client, alice, p["id"], v["id"]).json()
-    container.gemini.errors["ContentAnalysis"] = MalformedResponse("bad")
+    # A list is consumed one call at a time: the analysis fails once, then works.
+    container.gemini.errors["ContentAnalysis"] = [MalformedResponse("bad")]
     worker.run_once()
     failed = client.get(f"{API}/analyses/{job['id']}", headers=alice).json()
-    assert failed["status"] == "failed" and failed["error_code"] == "ai_response_invalid" and failed["retryable"]
+    assert failed["status"] == "failed" and failed["error_code"] == "ai_response_invalid"
+    assert failed["retryable"] and failed["attempts"] == 1
+
     r = client.post(f"{API}/analyses/{job['id']}/retry", headers=alice)
-    assert r.status_code == 202 and r.json()["status"] == "queued" and r.json()["error_code"] is None
-    assert client.post(f"{API}/analyses/{job['id']}/retry", headers=alice).status_code == 409  # not failed any more
+    assert (
+        r.status_code == 202 and r.json()["status"] == "queued" and r.json()["error_code"] is None
+    )
+    assert r.json()["attempts"] == 0  # a manual retry starts with a fresh attempt budget
+    assert client.post(f"{API}/analyses/{job['id']}/retry", headers=alice).status_code == 409
+
+    worker.run_once()
+    done = client.get(f"{API}/analyses/{job['id']}", headers=alice).json()
+    assert done["status"] == "completed" and done["attempts"] == 1 and done["report"]
+
+
+def test_job_that_used_all_attempts_can_still_be_retried_manually(client, alice, worker, container):
+    p, v = setup_video(client, alice)
+    job = start_analysis(client, alice, p["id"], v["id"]).json()
+    container.repo.update(
+        "analysis_jobs",
+        {"id": job["id"]},
+        {
+            "status": "failed",
+            "stage": "failed",
+            "attempts": 3,
+            "error_code": "ai_service_unavailable",
+        },
+    )
+    got = client.get(f"{API}/analyses/{job['id']}", headers=alice).json()
+    assert got["retryable"] is True
+    r = client.post(f"{API}/analyses/{job['id']}/retry", headers=alice)
+    assert r.status_code == 202 and r.json()["attempts"] == 0
     worker.run_once()
     assert client.get(f"{API}/analyses/{job['id']}", headers=alice).json()["status"] == "completed"
 
@@ -121,12 +163,15 @@ def test_failed_job_can_be_retried(client, alice, worker, container):
 def test_blocked_content_is_not_retryable_and_video_removed(client, alice, worker, container):
     p, v = setup_video(client, alice)
     job = start_analysis(client, alice, p["id"], v["id"]).json()
-    container.gemini.verdict = ModerationVerdict(allowed=False, categories=["hate_or_harassment"], reason="x")
+    container.gemini.verdict = ModerationVerdict(
+        allowed=False, categories=["hate_or_harassment"], reason="x"
+    )
     worker.run_once()
     got = client.get(f"{API}/analyses/{job['id']}", headers=alice).json()
     assert got["error_code"] == "content_blocked" and got["retryable"] is False
     assert client.post(f"{API}/analyses/{job['id']}/retry", headers=alice).status_code == 409
-    assert client.get(f"{API}/videos/{v['id']}", headers=alice).status_code == 404 and container.storage.objects == {}
+    assert client.get(f"{API}/videos/{v['id']}", headers=alice).status_code == 404
+    assert container.storage.objects == {}
 
 
 def test_cannot_delete_active_analysis(client, alice):
@@ -139,6 +184,16 @@ def test_cannot_delete_active_analysis(client, alice):
 def test_analysis_rate_limit(client, alice, container):
     container.settings.analysis_limit_per_hour = 1
     p = make_project(client, alice)
-    body = {"input_type": "script", "script_text": "A script that is long enough to pass validation.", **ANALYSIS}
-    assert client.post(f"{API}/projects/{p['id']}/analyses", json=body, headers=alice).status_code == 202
-    assert client.post(f"{API}/projects/{p['id']}/analyses", json=body, headers=alice).status_code == 429
+    body = {
+        "input_type": "script",
+        "script_text": "A script that is long enough to pass validation.",
+        **ANALYSIS,
+    }
+    assert (
+        client.post(f"{API}/projects/{p['id']}/analyses", json=body, headers=alice).status_code
+        == 202
+    )
+    assert (
+        client.post(f"{API}/projects/{p['id']}/analyses", json=body, headers=alice).status_code
+        == 429
+    )

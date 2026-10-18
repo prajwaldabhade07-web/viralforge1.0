@@ -17,7 +17,9 @@ def current_user(
     c: Container = Depends(get_container),
 ) -> CurrentUser:
     if creds is None or creds.scheme.lower() != "bearer" or not creds.credentials:
-        raise AppError(401, "not_authenticated", "Sign in to continue.", headers={"WWW-Authenticate": "Bearer"})
+        raise AppError(
+            401, "not_authenticated", "Sign in to continue.", headers={"WWW-Authenticate": "Bearer"}
+        )
     user = c.auth.verify(creds.credentials)
     c.limiter.hit("global", user.id, c.settings.rate_limit_per_minute, 60)
     return user

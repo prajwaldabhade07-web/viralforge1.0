@@ -1,12 +1,17 @@
 from types import SimpleNamespace
 
 import pytest
+from pydantic import BaseModel
 
 from app.auth import SupabaseAuthVerifier
 from app.errors import AppError
 from app.rate_limit import RateLimiter
-from app.services.gemini import GoogleGenaiGateway, MalformedResponse, ModelUnavailable, ProviderError
-from pydantic import BaseModel
+from app.services.gemini import (
+    GoogleGenaiGateway,
+    MalformedResponse,
+    ModelUnavailable,
+    ProviderError,
+)
 
 
 class Tiny(BaseModel):

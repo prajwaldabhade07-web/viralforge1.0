@@ -10,6 +10,8 @@ class Tk {
   static const ultra = Color(0xFF3A36E8); // primary
   static const ultraSoft = Color(0xFFE6E5FC);
   static const sodium = Color(0xFFFFC83D); // playhead only
+  static const pink = Color(0xFFFF5DA2);
+  static const mint = Color(0xFF1FCFA0);
   static const mute = Color(0xFF566082); // secondary text
   static const line = Color(0xFFD5DAE6);
   static const track = Color(0xFFDDE1EC);
@@ -22,6 +24,11 @@ class Tk {
   static const radius = 14.0;
 }
 
+/// Motion/cursor effects. Switched off automatically in tests (they build the theme with webFonts: false).
+class Fx {
+  static bool enabled = true;
+}
+
 bool _webFonts = true;
 
 /// Display face: Bricolage Grotesque (falls back to the platform font when web fonts are off, e.g. in tests).
@@ -32,6 +39,7 @@ TextStyle display(double size, {FontWeight weight = FontWeight.w700, Color color
 
 ThemeData buildTheme({bool webFonts = true}) {
   _webFonts = webFonts;
+  Fx.enabled = webFonts;
   const scheme = ColorScheme(
     brightness: Brightness.light,
     primary: Tk.ultra,

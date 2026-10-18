@@ -11,8 +11,14 @@ def test_requires_authentication(client):
 def test_project_crud(client, alice):
     p = make_project(client, alice)
     assert p["name"] == "Launch videos" and p["analysis_count"] == 0
-    r = client.patch(f"{API}/projects/{p['id']}", json={"niche": "fitness", "platform": "tiktok"}, headers=alice)
-    assert r.status_code == 200 and r.json()["niche"] == "fitness" and r.json()["name"] == "Launch videos"
+    r = client.patch(
+        f"{API}/projects/{p['id']}", json={"niche": "fitness", "platform": "tiktok"}, headers=alice
+    )
+    assert (
+        r.status_code == 200
+        and r.json()["niche"] == "fitness"
+        and r.json()["name"] == "Launch videos"
+    )
     assert client.get(f"{API}/projects/{p['id']}", headers=alice).json()["platform"] == "tiktok"
     assert client.delete(f"{API}/projects/{p['id']}", headers=alice).status_code == 204
     assert client.get(f"{API}/projects/{p['id']}", headers=alice).status_code == 404
@@ -23,8 +29,15 @@ def test_validation_errors_use_standard_shape(client, alice):
     assert r.status_code == 422
     err = r.json()["error"]
     assert err["code"] == "validation_error" and err["details"] and err["request_id"]
-    assert client.post(f"{API}/projects", json={"name": "x", "platform": "myspace"}, headers=alice).status_code == 422
-    assert client.post(f"{API}/projects", json={"name": "x" * 101}, headers=alice).status_code == 422
+    assert (
+        client.post(
+            f"{API}/projects", json={"name": "x", "platform": "myspace"}, headers=alice
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(f"{API}/projects", json={"name": "x" * 101}, headers=alice).status_code == 422
+    )
 
 
 def test_pagination(client, alice):
@@ -55,6 +68,7 @@ def test_delete_project_removes_stored_files(client, alice, container):
 
 def test_delete_project_blocked_while_analysis_active(client, alice):
     from tests.api_helpers import start_analysis
+
     p = make_project(client, alice)
     v = make_video(client, alice, p["id"])
     assert start_analysis(client, alice, p["id"], v["id"]).status_code == 202

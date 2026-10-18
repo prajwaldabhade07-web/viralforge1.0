@@ -42,3 +42,38 @@ final projectVideosProvider = FutureProvider.autoDispose.family<Paged<VideoItem>
 
 final projectAnalysesProvider =
     FutureProvider.autoDispose.family<Paged<Job>, String>((ref, id) => ref.watch(apiProvider).projectAnalyses(id));
+
+/// Numbers for the dashboard, computed from the user's history (no backend change needed).
+class DashStats {
+  final int total;
+  final int completed;
+  final double? average;
+  final int? best;
+  final List<int> trend; // oldest -> newest
+  final List<Job> latest;
+  const DashStats({
+    this.total = 0,
+    this.completed = 0,
+    this.average,
+    this.best,
+    this.trend = const [],
+    this.latest = const [],
+  });
+}
+
+final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async {
+  try {
+    final page = await ref.watch(apiProvider).history(limit: 30);
+    final scores = page.items.where((j) => j.overall != null).map((j) => j.overall!).toList();
+    return DashStats(
+      total: page.total,
+      completed: scores.length,
+      average: scores.isEmpty ? null : scores.reduce((a, b) => a + b) / scores.length,
+      best: scores.isEmpty ? null : scores.reduce((a, b) => a > b ? a : b),
+      trend: scores.take(8).toList().reversed.toList(),
+      latest: page.items.take(3).toList(),
+    );
+  } catch (_) {
+    return const DashStats();
+  }
+});

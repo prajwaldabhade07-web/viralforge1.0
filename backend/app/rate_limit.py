@@ -20,8 +20,12 @@ class RateLimiter:
                 q.popleft()
             if len(q) >= limit:
                 retry = max(1, int(q[0] + window_seconds - now))
-                raise AppError(429, "rate_limited", "Too many requests. Please wait and try again.",
-                               headers={"Retry-After": str(retry)})
+                raise AppError(
+                    429,
+                    "rate_limited",
+                    "Too many requests. Please wait and try again.",
+                    headers={"Retry-After": str(retry)},
+                )
             q.append(now)
 
     def reset(self) -> None:

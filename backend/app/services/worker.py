@@ -1,5 +1,6 @@
 """In-process background worker backed by the persistent `analysis_jobs` table.
 Jobs survive restarts: stale `processing` rows are recovered by `claim_next_job` after the lease."""
+
 import logging
 import threading
 
@@ -12,7 +13,9 @@ log = logging.getLogger("viralforge.worker")
 class Worker:
     def __init__(self, container: Container):
         self.c = container
-        self.pipeline = AnalysisPipeline(container.settings, container.repo, container.storage, container.gemini)
+        self.pipeline = AnalysisPipeline(
+            container.settings, container.repo, container.storage, container.gemini
+        )
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 

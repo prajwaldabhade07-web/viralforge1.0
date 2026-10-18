@@ -24,7 +24,15 @@ class Wordmark extends StatelessWidget {
         frame(Tk.ultra),
         frame(Tk.sodium),
         const SizedBox(width: 8),
-        Text('ViralForge', style: display(size, color: color, spacing: -0.6)),
+        Flexible(
+          child: Text(
+            'ViralForge',
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: display(size, color: color, spacing: -0.6),
+          ),
+        ),
       ],
     );
   }

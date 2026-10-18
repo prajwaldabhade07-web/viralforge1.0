@@ -1,4 +1,5 @@
 """Dependency container: everything external is injected, so tests substitute fakes."""
+
 import time
 from dataclasses import dataclass, field
 
@@ -33,11 +34,17 @@ class Container:
         Failures are re-checked at most every `max_age_bad` seconds to avoid hammering the API."""
         st = self.model_status
         age = time.monotonic() - st.checked_at if st.checked_at else None
-        if age is not None and max_age and ((st.ok and age < max_age) or (not st.ok and age < max_age_bad)):
+        if (
+            age is not None
+            and max_age
+            and ((st.ok and age < max_age) or (not st.ok and age < max_age_bad))
+        ):
             return st
         try:
             self.gemini.check_model()
-            self.model_status = ModelStatus(True, f"Model '{self.settings.gemini_model}' is available.", time.monotonic())
+            self.model_status = ModelStatus(
+                True, f"Model '{self.settings.gemini_model}' is available.", time.monotonic()
+            )
         except ModelUnavailable as e:
             self.model_status = ModelStatus(False, str(e), time.monotonic())
         return self.model_status
@@ -52,7 +59,9 @@ def build_default_container(settings: Settings) -> Container:
     missing = settings.missing_required()
     if missing:
         raise RuntimeError(
-            "Missing configuration: " + ", ".join(missing) + ". Copy .env.example to .env and fill in the values."
+            "Missing configuration: "
+            + ", ".join(missing)
+            + ". Copy .env.example to .env and fill in the values."
         )
     repo = SupabaseRepo(settings.supabase_url, settings.supabase_service_role_key)
     return Container(
@@ -61,8 +70,11 @@ def build_default_container(settings: Settings) -> Container:
         storage=SupabaseStorage(repo.client, settings.storage_bucket),
         auth=SupabaseAuthVerifier(repo.client),
         gemini=GoogleGenaiGateway(
-            settings.gemini_api_key, settings.gemini_model,
+            settings.gemini_api_key,
+            settings.gemini_model,
             timeout_s=settings.gemini_timeout_seconds,
             file_ready_timeout_s=settings.gemini_file_ready_timeout_seconds,
+            thinking_level=settings.gemini_thinking_level,
+            media_resolution=settings.gemini_media_resolution,
         ),
     )

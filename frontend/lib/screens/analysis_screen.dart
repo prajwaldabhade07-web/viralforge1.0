@@ -9,6 +9,7 @@ import '../models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/fx.dart';
 import '../widgets/report_view.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
@@ -156,7 +157,11 @@ class ProgressPanel extends StatelessWidget {
     return Panel(
       padding: const EdgeInsets.all(28),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const FilmLoader(),
+        const SizedBox(height: 18),
         Text(job.status == 'queued' ? 'Your analysis is queued' : 'Analysing your ${script ? 'script' : 'video'}', style: display(28)),
+        const SizedBox(height: 6),
+        Text(_funLine(job.stage), style: const TextStyle(color: Tk.ultra, fontWeight: FontWeight.w600)),
         const SizedBox(height: 6),
         const Text('You can leave this page. The analysis keeps running and will be in your history.', style: TextStyle(color: Tk.mute, height: 1.4)),
         const SizedBox(height: 20),
@@ -222,5 +227,24 @@ class _FailurePanel extends StatelessWidget {
         ]),
       ]),
     );
+  }
+}
+
+String _funLine(String stage) {
+  switch (stage) {
+    case 'preparing_video':
+    case 'uploading':
+      return 'Handing your clip to the AI. Usually takes 1 to 3 minutes in total.';
+    case 'moderating':
+    case 'analyzing':
+      return 'Watching your hook frame by frame...';
+    case 'simulating_audience':
+      return 'Ten very different viewers are scrolling past your video...';
+    case 'finalizing':
+      return 'Polishing your report. Almost there.';
+    case 'retrying':
+      return 'The AI was busy, trying again in a moment.';
+    default:
+      return 'Usually takes 1 to 3 minutes.';
   }
 }

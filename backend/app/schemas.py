@@ -1,4 +1,5 @@
 """Public API request/response models."""
+
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -78,7 +79,9 @@ class AnalysisCreate(BaseModel):
     target_audience: str = Field(min_length=1, max_length=200)
     caption: str | None = Field(default=None, max_length=2200)
 
-    _s = field_validator("niche", "target_audience", "caption", "script_text", mode="before")(_strip)
+    _s = field_validator("niche", "target_audience", "caption", "script_text", mode="before")(
+        _strip
+    )
 
     @model_validator(mode="after")
     def _check_input(self):

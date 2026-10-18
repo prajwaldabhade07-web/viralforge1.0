@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router.dart';
 import 'theme.dart';
+import 'widgets/fx.dart';
 
 class ViralForgeApp extends ConsumerWidget {
   final bool webFonts;
@@ -15,6 +16,7 @@ class ViralForgeApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: buildTheme(webFonts: webFonts),
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => CursorFx(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -1,4 +1,5 @@
 """Environment-driven settings. Values come from the repo-root .env file or real env vars."""
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -23,8 +24,13 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
-    gemini_timeout_seconds: int = 180
+    gemini_timeout_seconds: int = 120
     gemini_file_ready_timeout_seconds: int = 300
+    # Speed settings. Set to empty in .env to disable (e.g. GEMINI_THINKING_LEVEL=)
+    gemini_thinking_level: str = "low"
+    gemini_media_resolution: str = "low"
+    # Run the safety check and the analysis at the same time
+    parallel_moderation: bool = True
 
     # Upload limits
     max_upload_mb: int = 50
@@ -57,7 +63,9 @@ class Settings(BaseSettings):
 
     @property
     def extension_list(self) -> list[str]:
-        return [e.strip().lower().lstrip(".") for e in self.allowed_extensions.split(",") if e.strip()]
+        return [
+            e.strip().lower().lstrip(".") for e in self.allowed_extensions.split(",") if e.strip()
+        ]
 
     def missing_required(self) -> list[str]:
         names = {

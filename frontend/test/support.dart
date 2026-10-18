@@ -18,6 +18,7 @@ class FakeAuth implements AuthService {
   bool registerNeedsConfirm = true;
   final signInCalls = <List<String>>[];
   final registerCalls = <List<String>>[];
+  final resetCalls = <String>[];
   final _changes = StreamController<void>.broadcast();
 
   FakeAuth({this.signedIn = true});
@@ -44,6 +45,15 @@ class FakeAuth implements AuthService {
     signedIn = true;
     _changes.add(null);
   }
+
+  @override
+  Future<void> sendPasswordReset(String email) async => resetCalls.add(email);
+
+  @override
+  Future<void> verifyResetCode(String email, String code) async {}
+
+  @override
+  Future<void> updatePassword(String newPassword) async {}
 
   @override
   Future<void> signOut() async {
@@ -255,12 +265,13 @@ class FakeApi extends Fake implements ApiClient {
 }
 
 /// Mounts the real router with fakes. Use [location] to start somewhere other than /projects.
+/// The default surface is tall so buttons at the bottom of long forms are on screen.
 Future<GoRouterHandle> pumpApp(
   WidgetTester tester, {
   required FakeAuth auth,
   required FakeApi api,
   String location = '/projects',
-  Size size = const Size(1200, 900),
+  Size size = const Size(1200, 1400),
   bool settle = true,
 }) async {
   tester.view.physicalSize = size;
@@ -284,7 +295,7 @@ Future<GoRouterHandle> pumpApp(
 class GoRouterHandle {
   final dynamic router;
   GoRouterHandle(this.router);
-  String get location => router.state.uri.toString() as String;
+  String get location => router.state.uri.toString();
 }
 
 Uint8List fakeBytes(int n) => Uint8List(n);

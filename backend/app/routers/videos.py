@@ -23,10 +23,19 @@ def owned_video(c: Container, user_id: str, video_id: str) -> dict:
     return rows[0]
 
 
-@router.post("/projects/{project_id}/videos", response_model=VideoOut, status_code=201,
-             summary="Upload a video to a project")
-def upload_video(project_id: str, request: Request, file: UploadFile = File(...),
-                 user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)):
+@router.post(
+    "/projects/{project_id}/videos",
+    response_model=VideoOut,
+    status_code=201,
+    summary="Upload a video to a project",
+)
+def upload_video(
+    project_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(current_user),
+    c: Container = Depends(get_container),
+):
     s = c.settings
     c.limiter.hit("upload", user.id, s.upload_limit_per_hour, 3600)
     owned_project(c, user.id, project_id)
@@ -47,9 +56,14 @@ def upload_video(project_id: str, request: Request, file: UploadFile = File(...)
 
     try:
         info = validate_upload(
-            filename=file.filename or "", declared_mime=file.content_type, data=data,
-            allowed_extensions=s.extension_list, max_bytes=s.max_upload_bytes,
-            min_seconds=s.min_video_seconds, max_seconds=s.max_video_seconds)
+            filename=file.filename or "",
+            declared_mime=file.content_type,
+            data=data,
+            allowed_extensions=s.extension_list,
+            max_bytes=s.max_upload_bytes,
+            min_seconds=s.min_video_seconds,
+            max_seconds=s.max_video_seconds,
+        )
     except MediaError as e:
         raise AppError(e.status, e.code, e.message) from e
 
@@ -59,48 +73,84 @@ def upload_video(project_id: str, request: Request, file: UploadFile = File(...)
         c.storage.upload(path, data, info.mime_type)
     except Exception as e:  # noqa: BLE001
         log.exception("Storage upload failed")
-        raise AppError(502, "storage_unavailable", "Could not store the video. Try again shortly.") from e
+        raise AppError(
+            502, "storage_unavailable", "Could not store the video. Try again shortly."
+        ) from e
     try:
-        row = c.repo.insert("videos", {
-            "id": video_id, "user_id": user.id, "project_id": project_id, "storage_path": path,
-            "original_filename": (file.filename or "video")[:200], "mime_type": info.mime_type,
-            "size_bytes": len(data), "duration_seconds": info.duration_seconds})
+        row = c.repo.insert(
+            "videos",
+            {
+                "id": video_id,
+                "user_id": user.id,
+                "project_id": project_id,
+                "storage_path": path,
+                "original_filename": (file.filename or "video")[:200],
+                "mime_type": info.mime_type,
+                "size_bytes": len(data),
+                "duration_seconds": info.duration_seconds,
+            },
+        )
     except Exception:
         c.storage.remove([path])  # do not leave orphaned files
         raise
     return row
 
 
-@router.get("/projects/{project_id}/videos", response_model=VideoPage, summary="List a project's videos")
-def list_videos(project_id: str, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0),
-                user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)):
+@router.get(
+    "/projects/{project_id}/videos", response_model=VideoPage, summary="List a project's videos"
+)
+def list_videos(
+    project_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    user: CurrentUser = Depends(current_user),
+    c: Container = Depends(get_container),
+):
     owned_project(c, user.id, project_id)
     where = {"project_id": project_id, "user_id": user.id}
-    return {"items": c.repo.select("videos", where, order="created_at", limit=limit, offset=offset),
-            "total": c.repo.count("videos", where), "limit": limit, "offset": offset}
+    return {
+        "items": c.repo.select("videos", where, order="created_at", limit=limit, offset=offset),
+        "total": c.repo.count("videos", where),
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/videos/{video_id}", response_model=VideoOut, summary="Get video metadata")
-def get_video(video_id: str, user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)):
+def get_video(
+    video_id: str, user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)
+):
     return owned_video(c, user.id, video_id)
 
 
-@router.get("/videos/{video_id}/url", response_model=SignedUrlOut, summary="Short-lived signed URL for playback")
-def video_url(video_id: str, user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)):
+@router.get(
+    "/videos/{video_id}/url",
+    response_model=SignedUrlOut,
+    summary="Short-lived signed URL for playback",
+)
+def video_url(
+    video_id: str, user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)
+):
     v = owned_video(c, user.id, video_id)  # ownership verified before any URL is signed
     ttl = c.settings.signed_url_ttl_seconds
     try:
         url = c.storage.signed_url(v["storage_path"], ttl)
     except Exception as e:  # noqa: BLE001
-        raise AppError(502, "storage_unavailable", "Could not create a video link right now.") from e
+        raise AppError(
+            502, "storage_unavailable", "Could not create a video link right now."
+        ) from e
     return SignedUrlOut(url=url, expires_in=ttl)
 
 
 @router.delete("/videos/{video_id}", status_code=204, summary="Delete a video")
-def delete_video(video_id: str, user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)):
+def delete_video(
+    video_id: str, user: CurrentUser = Depends(current_user), c: Container = Depends(get_container)
+):
     v = owned_video(c, user.id, video_id)
     if c.repo.count("analysis_jobs", {"video_id": video_id, "status": ("in", list(ACTIVE))}):
-        raise conflict("analysis_in_progress", "This video is being analysed. Wait for the analysis to finish.")
+        raise conflict(
+            "analysis_in_progress", "This video is being analysed. Wait for the analysis to finish."
+        )
     try:
         c.storage.remove([v["storage_path"]])
     except Exception:  # noqa: BLE001

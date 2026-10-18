@@ -1,4 +1,5 @@
 """Handling of untrusted text: sanitising, prompt-injection heuristics, log redaction."""
+
 import logging
 import re
 import secrets
@@ -42,7 +43,9 @@ def new_boundary() -> str:
 def wrap_untrusted(label: str, text: str, boundary: str) -> str:
     """Wrap untrusted text in a per-request random boundary the user cannot predict or close."""
     safe = text.replace(boundary, "")
-    return f"<<<UNTRUSTED_{label.upper()}_{boundary}\n{safe}\nUNTRUSTED_{label.upper()}_{boundary}>>>"
+    return (
+        f"<<<UNTRUSTED_{label.upper()}_{boundary}\n{safe}\nUNTRUSTED_{label.upper()}_{boundary}>>>"
+    )
 
 
 _SECRET_RE = re.compile(

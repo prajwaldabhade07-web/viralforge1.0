@@ -21,6 +21,11 @@ abstract class AuthService {
   Future<bool> register(String email, String password);
   Future<void> signIn(String email, String password);
   Future<void> signOut();
+
+  /// Password reset with an emailed one-time code (no redirect links involved).
+  Future<void> sendPasswordReset(String email);
+  Future<void> verifyResetCode(String email, String code);
+  Future<void> updatePassword(String newPassword);
 }
 
 class SupabaseAuthService implements AuthService {
@@ -86,6 +91,39 @@ class SupabaseAuthService implements AuthService {
     }
   }
 
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.resetPasswordForEmail(email);
+    } on AuthException catch (e) {
+      throw AuthFailure(_friendly(e.message));
+    } catch (_) {
+      throw const AuthFailure('Could not reach the sign-in service. Check your connection and try again.');
+    }
+  }
+
+  @override
+  Future<void> verifyResetCode(String email, String code) async {
+    try {
+      await _auth.verifyOTP(email: email, token: code, type: OtpType.recovery);
+    } on AuthException catch (e) {
+      throw AuthFailure(_friendly(e.message));
+    } catch (_) {
+      throw const AuthFailure('Could not reach the sign-in service. Check your connection and try again.');
+    }
+  }
+
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    try {
+      await _auth.updateUser(UserAttributes(password: newPassword));
+    } on AuthException catch (e) {
+      throw AuthFailure(_friendly(e.message));
+    } catch (_) {
+      throw const AuthFailure('Could not reach the sign-in service. Check your connection and try again.');
+    }
+  }
+
   String _friendly(String raw) {
     final m = raw.toLowerCase();
     if (m.contains('invalid login')) return 'Email or password is incorrect.';
@@ -93,7 +131,11 @@ class SupabaseAuthService implements AuthService {
       return 'An account with this email already exists. Sign in instead.';
     }
     if (m.contains('email not confirmed')) return 'Confirm your email first. Check your inbox for the link.';
-    if (m.contains('rate limit')) return 'Too many attempts. Wait a minute and try again.';
+    if (m.contains('rate limit')) return 'Too many attempts. Wait a few minutes and try again.';
+    if (m.contains('token') && (m.contains('expired') || m.contains('invalid'))) {
+      return 'That code is incorrect or has expired. Request a new one.';
+    }
+    if (m.contains('different from the old')) return 'Choose a password you have not used before.';
     if (m.contains('password')) return raw;
     return raw.isEmpty ? 'Something went wrong. Try again.' : raw;
   }

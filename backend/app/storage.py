@@ -1,4 +1,5 @@
 """Private object storage. The bucket is private; access is only through backend-signed URLs."""
+
 from typing import Protocol
 
 

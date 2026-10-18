@@ -2,6 +2,7 @@
 in-memory one in tests/fakes.py. Ownership (user_id) is always part of the `where` filters
 built by the services/routers; the Supabase service-role key bypasses RLS, so this code
 is the enforcement point for backend access (RLS protects any direct client access)."""
+
 from typing import Any, Protocol
 
 from app.errors import UniqueViolation
@@ -11,8 +12,15 @@ Where = dict[str, Any]  # {"col": value} for equality, {"col": ("in", [..])} for
 
 class Repo(Protocol):
     def insert(self, table: str, row: dict) -> dict: ...
-    def select(self, table: str, where: Where | None = None, order: str | None = None, desc: bool = True,
-               limit: int | None = None, offset: int = 0) -> list[dict]: ...
+    def select(
+        self,
+        table: str,
+        where: Where | None = None,
+        order: str | None = None,
+        desc: bool = True,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict]: ...
     def count(self, table: str, where: Where | None = None) -> int: ...
     def update(self, table: str, where: Where, patch: dict) -> list[dict]: ...
     def delete(self, table: str, where: Where) -> int: ...
@@ -40,7 +48,11 @@ class SupabaseRepo:
         try:
             res = self.client.table(table).insert(row).execute()
         except Exception as e:  # noqa: BLE001
-            if getattr(e, "code", None) == "23505" or "23505" in str(e) or "duplicate key" in str(e):
+            if (
+                getattr(e, "code", None) == "23505"
+                or "23505" in str(e)
+                or "duplicate key" in str(e)
+            ):
                 raise UniqueViolation(str(table)) from e
             raise
         return res.data[0]
@@ -61,7 +73,11 @@ class SupabaseRepo:
         try:
             return _apply(self.client.table(table).update(patch), where).execute().data or []
         except Exception as e:  # noqa: BLE001
-            if getattr(e, "code", None) == "23505" or "23505" in str(e) or "duplicate key" in str(e):
+            if (
+                getattr(e, "code", None) == "23505"
+                or "23505" in str(e)
+                or "duplicate key" in str(e)
+            ):
                 raise UniqueViolation(str(table)) from e
             raise
 
