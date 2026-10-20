@@ -7,6 +7,7 @@ import '../api/auth_service.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/dark_ui.dart';
 
 final _mailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
@@ -78,69 +79,85 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
   }
 
-  Widget _spinner() =>
-      SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: context.pal.onUltra));
+  Widget _primary(String label, VoidCallback onTap) {
+    final p = context.pal;
+    return FilledButton(
+      style: FilledButton.styleFrom(backgroundColor: p.sodium, foregroundColor: p.onSodium),
+      onPressed: _busy ? null : onTap,
+      child: _busy ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: p.onSodium)) : Text(label),
+    );
+  }
 
   List<Widget> _stepEmail() {
+    final p = context.pal;
     final ty = context.ty;
     return [
-      Text('Forgot your password?', style: ty.title),
+      Text('Forgot your password?', style: ty.title.copyWith(color: p.onHero)),
       const SizedBox(height: 6),
-      Text('Enter your email and we will send you a 6-digit code.', style: ty.body.copyWith(color: context.pal.mute)),
+      Text('Enter your email and we will send you a 6-digit code.', style: ty.body.copyWith(color: p.heroMute)),
       const SizedBox(height: 20),
       TextFormField(
         controller: _email,
+        style: TextStyle(color: p.onHero),
         keyboardType: TextInputType.emailAddress,
         autofillHints: const [AutofillHints.email],
         textInputAction: TextInputAction.done,
         onFieldSubmitted: (_) => _send(),
-        decoration: fieldDecoration(context, 'Email'),
+        decoration: darkField(context, 'Email'),
         validator: (v) => (v == null || !_mailRe.hasMatch(v.trim())) ? 'Enter a valid email address.' : null,
       ),
       const SizedBox(height: 18),
-      FilledButton(onPressed: _busy ? null : _send, child: _busy ? _spinner() : const Text('Send code')),
+      _primary('Send code', _send),
     ];
   }
 
   List<Widget> _stepCode() {
+    final p = context.pal;
     final ty = context.ty;
     return [
-      Text('Check your inbox', style: ty.title),
+      Text('Check your inbox', style: ty.title.copyWith(color: p.onHero)),
       const SizedBox(height: 6),
-      Text('Enter the code from the email and choose a new password.', style: ty.body.copyWith(color: context.pal.mute)),
+      Text('Enter the code from the email and choose a new password.', style: ty.body.copyWith(color: p.heroMute)),
       const SizedBox(height: 20),
       TextFormField(
         controller: _code,
+        style: TextStyle(color: p.onHero),
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(8)],
-        decoration: fieldDecoration(context, 'Code from email', hint: '123456'),
+        decoration: darkField(context, 'Code from email'),
         validator: (v) => (v == null || v.trim().length < 6) ? 'Enter the 6-digit code.' : null,
       ),
       const SizedBox(height: 14),
       TextFormField(
         controller: _password,
+        style: TextStyle(color: p.onHero),
         obscureText: _obscure,
         autofillHints: const [AutofillHints.newPassword],
         textInputAction: TextInputAction.done,
         onFieldSubmitted: (_) => _reset(),
-        decoration: fieldDecoration(
+        decoration: darkField(
           context,
           'New password',
           helper: 'At least 8 characters.',
           suffix: IconButton(
             tooltip: _obscure ? 'Show password' : 'Hide password',
-            icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+            icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, color: p.heroMute),
             onPressed: () => setState(() => _obscure = !_obscure),
           ),
         ),
         validator: (v) => (v == null || v.length < 8) ? 'Use at least 8 characters.' : null,
       ),
       const SizedBox(height: 18),
-      FilledButton(onPressed: _busy ? null : _reset, child: _busy ? _spinner() : const Text('Reset password')),
+      _primary('Reset password', _reset),
       const SizedBox(height: 6),
-      Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        TextButton(onPressed: _busy ? null : () => _send(resend: true), child: const Text('Resend code')),
+      Wrap(alignment: WrapAlignment.spaceBetween, children: [
         TextButton(
+          style: TextButton.styleFrom(foregroundColor: p.sodium),
+          onPressed: _busy ? null : () => _send(resend: true),
+          child: const Text('Resend code'),
+        ),
+        TextButton(
+          style: TextButton.styleFrom(foregroundColor: p.sodium),
           onPressed: _busy
               ? null
               : () => setState(() {
@@ -156,33 +173,37 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Wordmark(size: 26),
-              const SizedBox(height: 24),
-              Panel(
-                raised: true,
-                padding: const EdgeInsets.all(28),
-                child: Form(
-                  key: _form,
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    if (_info != null) ...[InlineMessage(MsgKind.success, _info!), const SizedBox(height: 14)],
-                    if (_error != null) ...[InlineMessage(MsgKind.error, _error!), const SizedBox(height: 14)],
-                    ..._step == 0 ? _stepEmail() : _stepCode(),
-                    const SizedBox(height: 4),
-                    TextButton(
-                      onPressed: _busy ? null : () => context.go('/login'),
-                      child: const Text('Back to sign in'),
-                    ),
-                  ]),
+      backgroundColor: Palette.dark.hero,
+      body: DarkScene(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Wordmark(color: p.onHero, size: 26),
+                const SizedBox(height: 24),
+                GlassCard(
+                  padding: const EdgeInsets.all(28),
+                  child: Form(
+                    key: _form,
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                      if (_info != null) ...[InlineMessage(MsgKind.success, _info!), const SizedBox(height: 14)],
+                      if (_error != null) ...[InlineMessage(MsgKind.error, _error!), const SizedBox(height: 14)],
+                      ..._step == 0 ? _stepEmail() : _stepCode(),
+                      const SizedBox(height: 4),
+                      TextButton(
+                        style: TextButton.styleFrom(foregroundColor: p.sodium),
+                        onPressed: _busy ? null : () => context.go('/login'),
+                        child: const Text('Back to sign in'),
+                      ),
+                    ]),
+                  ),
                 ),
-              ),
-            ]),
+              ]),
+            ),
           ),
         ),
       ),

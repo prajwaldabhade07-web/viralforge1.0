@@ -8,10 +8,12 @@ import '../theme.dart';
 import 'film.dart';
 
 /// Drag-and-drop target with a file-picker fallback (the whole area is also a button).
+/// [onDark] restyles it for the dark Quick Studio card.
 class VideoDropArea extends StatefulWidget {
   final void Function(PickedVideo video) onPicked;
   final void Function(String message) onError;
   final bool enabled;
+  final bool onDark;
   final String limitsText;
   const VideoDropArea({
     super.key,
@@ -19,6 +21,7 @@ class VideoDropArea extends StatefulWidget {
     required this.onError,
     required this.limitsText,
     this.enabled = true,
+    this.onDark = false,
   });
 
   @override
@@ -65,6 +68,11 @@ class _VideoDropAreaState extends State<VideoDropArea> {
   Widget build(BuildContext context) {
     final p = context.pal;
     final ty = context.ty;
+    final dark = widget.onDark;
+    final fg = dark ? p.onHero : p.text;
+    final sub = dark ? p.heroMute : p.mute;
+    final bg = dark ? p.onHero.withValues(alpha: _hover ? 0.14 : 0.06) : (_hover ? p.ultraSoft : p.surface);
+    final edge = dark ? p.onHero.withValues(alpha: _hover ? 0.6 : 0.28) : (_hover ? p.ultra : p.line);
     final radius = BorderRadius.circular(kRadius);
     return Stack(children: [
       if (kIsWeb)
@@ -87,27 +95,28 @@ class _VideoDropAreaState extends State<VideoDropArea> {
             duration: const Duration(milliseconds: 150),
             curve: Curves.easeOut,
             width: double.infinity,
-            decoration: BoxDecoration(
-              color: _hover ? p.ultraSoft : p.surface,
-              borderRadius: radius,
-              border: Border.all(color: _hover ? p.ultra : p.line, width: _hover ? 2 : 1.5),
-            ),
+            decoration: BoxDecoration(color: bg, borderRadius: radius, border: Border.all(color: edge, width: _hover ? 2 : 1.5)),
             child: ClipRRect(
               borderRadius: radius,
               child: Stack(children: [
-                SprocketOverlay(color: p.line),
+                SprocketOverlay(color: dark ? p.onHero.withValues(alpha: 0.14) : p.line),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
                   child: Column(children: [
-                    Icon(Icons.movie_creation_outlined, size: 36, color: _hover ? p.ultra : p.mute),
-                    const SizedBox(height: 12),
-                    Text(_hover ? 'Release to add this video' : 'Drop a video here', style: ty.heading.copyWith(fontSize: 19)),
+                    Icon(Icons.movie_creation_outlined, size: 34, color: _hover ? (dark ? p.sodium : p.ultra) : sub),
+                    const SizedBox(height: 10),
+                    Text(_hover ? 'Release to add this video' : 'Drop a video here',
+                        textAlign: TextAlign.center, style: ty.heading.copyWith(fontSize: 18, color: fg)),
                     const SizedBox(height: 4),
-                    Text('or choose a file from your device', style: ty.body.copyWith(color: p.mute)),
-                    const SizedBox(height: 14),
-                    OutlinedButton(onPressed: widget.enabled ? _pick : null, child: const Text('Choose a file')),
+                    Text('or choose a file from your device', textAlign: TextAlign.center, style: ty.body.copyWith(color: sub, fontSize: 14)),
                     const SizedBox(height: 12),
-                    Text(widget.limitsText, style: ty.caption, textAlign: TextAlign.center),
+                    OutlinedButton(
+                      style: OutlinedButton.styleFrom(foregroundColor: fg, side: BorderSide(color: dark ? p.onHero.withValues(alpha: 0.4) : p.line)),
+                      onPressed: widget.enabled ? _pick : null,
+                      child: const Text('Choose a file'),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(widget.limitsText, style: ty.caption.copyWith(color: sub), textAlign: TextAlign.center),
                   ]),
                 ),
               ]),

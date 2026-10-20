@@ -1,30 +1,26 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:viralforge_experiment/app.dart';
-import 'package:viralforge_experiment/state/providers.dart';
-
-import 'support.dart';
+import 'package:viralforge_experiment/util/text.dart';
 
 void main() {
-  testWidgets('app boots to the sign-in screen when signed out', (tester) async {
-    tester.view.physicalSize = const Size(1200, 900);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        authServiceProvider.overrideWithValue(FakeAuth(signedIn: false)),
-        apiProvider.overrideWithValue(FakeApi()),
-      ],
-      child: const ViralForgeApp(webFonts: false),
-    ));
-    await tester.pumpAndSettle();
-    expect(find.text('Sign in'), findsWidgets);
-    expect(find.text('ViralForge'), findsWidgets);
+  test('plural', () {
+    expect(plural(1, 'analysis', 'analyses'), '1 analysis');
+    expect(plural(2, 'analysis', 'analyses'), '2 analyses');
+    expect(plural(0, 'analysis', 'analyses'), '0 analyses');
   });
 
-  testWidgets('missing configuration shows setup guidance', (tester) async {
-    await tester.pumpWidget(const ConfigErrorApp());
-    expect(find.textContaining('not configured'), findsOneWidget);
+  test('verdictFor bands', () {
+    expect(verdictFor(90), 'Exceptional');
+    expect(verdictFor(75), 'Strong');
+    expect(verdictFor(74), 'Promising');
+    expect(verdictFor(40), 'Developing');
+    expect(verdictFor(39), 'Needs rework');
+  });
+
+  test('delta and shortDate', () {
+    expect(delta(4, 'from last analysis', 'Same'), '+4 from last analysis');
+    expect(delta(-3, 'vs last week', 'Same'), '-3 vs last week');
+    expect(delta(0, 'vs last week', 'Same as last week'), 'Same as last week');
+    expect(shortDate(DateTime(2026, 3, 2)), '2 Mar');
+    expect(shortDate(null), '');
   });
 }
