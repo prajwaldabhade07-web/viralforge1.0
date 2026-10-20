@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import '../models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 import '../util/format.dart';
+import '../util/platform.dart';
 import '../widgets/common.dart';
 import '../widgets/video_drop_area.dart';
 
@@ -103,6 +106,7 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
       setState(() => _error = 'Choose a video to analyse first.');
       return;
     }
+    unawaited(requestNotifyPermission());
     setState(() {
       _error = null;
       _phase = _mode == 'video' && _existing == null && _uploadedVideoId == null ? _Phase.uploading : _Phase.starting;
@@ -155,6 +159,8 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
   }
 
   Widget _fileCard() {
+    final p = context.pal;
+    final ty = context.ty;
     final name = _picked?.name ?? _existing?.filename;
     final size = _picked?.size ?? _existing?.sizeBytes;
     if (name == null) {
@@ -169,18 +175,18 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
     }
     return Panel(
       child: Row(children: [
-        const Icon(Icons.movie_outlined, color: Tk.ultra, size: 28),
+        Icon(Icons.movie_outlined, color: p.ultra, size: 28),
         const SizedBox(width: 14),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: ty.bodyStrong),
             Text(
               [
                 if (size != null) formatBytes(size),
                 if (_existing?.durationSeconds != null) formatDuration(_existing!.durationSeconds!),
                 if (_uploadedVideoId != null) 'uploaded',
               ].join(', '),
-              style: const TextStyle(color: Tk.mute, fontSize: 13),
+              style: ty.caption,
             ),
           ]),
         ),
@@ -199,6 +205,7 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ty = context.ty;
     final script = _mode == 'script';
     return PageFrame(
       child: ConstrainedBox(
@@ -214,7 +221,7 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
                 label: const Text('Back to project'),
               ),
             ),
-            const PageHeader(title: 'New analysis', subtitle: 'Add a video and tell us where you will post it.'),
+            const PageHeader(title: 'New analysis', subtitle: 'Add a video and tell Pip where you will post it.'),
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment(value: 'video', label: Text('Video'), icon: Icon(Icons.movie_outlined)),
@@ -237,12 +244,12 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
                 maxLines: 14,
                 maxLength: 8000,
                 enabled: !_busy,
-                decoration: fieldDecoration('Script', hint: 'Paste the spoken lines and describe the shots.'),
+                decoration: fieldDecoration(context, 'Script', hint: 'Paste the spoken lines and describe the shots.'),
                 validator: (v) => (v == null || v.trim().length < 20) ? 'Write at least 20 characters.' : null,
               ),
             ],
             const SizedBox(height: 22),
-            Text('Where will you post it?', style: display(18)),
+            Text('Where will you post it?', style: ty.heading),
             const SizedBox(height: 10),
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final e in platformLabels.entries)
@@ -250,7 +257,6 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
                   label: Text(e.value),
                   selected: _platform == e.key,
                   onSelected: _busy ? null : (_) => setState(() => _platform = e.key),
-                  selectedColor: Tk.ultraSoft,
                 ),
             ]),
             const SizedBox(height: 18),
@@ -258,7 +264,7 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
               controller: _niche,
               enabled: !_busy,
               maxLength: 100,
-              decoration: fieldDecoration('Niche', hint: 'Budget cooking'),
+              decoration: fieldDecoration(context, 'Niche', hint: 'Budget cooking'),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter the niche of this video.' : null,
             ),
             const SizedBox(height: 6),
@@ -266,7 +272,7 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
               controller: _audience,
               enabled: !_busy,
               maxLength: 200,
-              decoration: fieldDecoration('Target audience', hint: 'College students who cook for one'),
+              decoration: fieldDecoration(context, 'Target audience', hint: 'College students who cook for one'),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Describe who you want to reach.' : null,
             ),
             const SizedBox(height: 6),
@@ -276,12 +282,12 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
               maxLength: 2200,
               minLines: 2,
               maxLines: 4,
-              decoration: fieldDecoration('Caption (optional)', helper: 'The caption is considered alongside the video, never instead of it.'),
+              decoration: fieldDecoration(context, 'Caption (optional)', helper: 'The caption is considered alongside the video, never instead of it.'),
             ),
             const SizedBox(height: 16),
             if (_error != null) ...[InlineMessage(MsgKind.error, _error!), const SizedBox(height: 14)],
             if (_phase == _Phase.uploading) ...[
-              LinearProgressIndicator(value: _progress >= 1 ? null : _progress, minHeight: 8, color: Tk.ultra, backgroundColor: Tk.track),
+              LinearProgressIndicator(value: _progress >= 1 ? null : _progress, minHeight: 8),
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(
@@ -289,7 +295,7 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
                     _progress >= 1
                         ? 'Checking your video...'
                         : 'Uploading ${(_progress * 100).round()}%${_picked != null ? ' of ${formatBytes(_picked!.size)}' : ''}',
-                    style: const TextStyle(color: Tk.mute),
+                    style: ty.caption.copyWith(fontSize: 14),
                   ),
                 ),
                 TextButton(onPressed: () => _cancel?.cancel(), child: const Text('Cancel upload')),
@@ -297,9 +303,9 @@ class _NewAnalysisScreenState extends ConsumerState<NewAnalysisScreen> {
               const SizedBox(height: 8),
             ],
             if (_phase == _Phase.starting) ...[
-              const LinearProgressIndicator(minHeight: 8, color: Tk.ultra, backgroundColor: Tk.track),
+              const LinearProgressIndicator(minHeight: 8),
               const SizedBox(height: 8),
-              const Text('Starting the analysis...', style: TextStyle(color: Tk.mute)),
+              Text('Starting the analysis...', style: ty.caption.copyWith(fontSize: 14)),
               const SizedBox(height: 8),
             ],
             FilledButton(

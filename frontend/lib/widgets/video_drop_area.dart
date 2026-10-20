@@ -5,6 +5,7 @@ import 'package:flutter_dropzone/flutter_dropzone.dart';
 
 import '../api/api_client.dart';
 import '../theme.dart';
+import 'film.dart';
 
 /// Drag-and-drop target with a file-picker fallback (the whole area is also a button).
 class VideoDropArea extends StatefulWidget {
@@ -62,6 +63,9 @@ class _VideoDropAreaState extends State<VideoDropArea> {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
+    final ty = context.ty;
+    final radius = BorderRadius.circular(kRadius);
     return Stack(children: [
       if (kIsWeb)
         Positioned.fill(
@@ -77,28 +81,37 @@ class _VideoDropAreaState extends State<VideoDropArea> {
         button: true,
         label: 'Choose a video file to upload',
         child: InkWell(
-          borderRadius: BorderRadius.circular(Tk.radius),
+          borderRadius: radius,
           onTap: widget.enabled ? _pick : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
             decoration: BoxDecoration(
-              color: _hover ? Tk.ultraSoft : Tk.gate,
-              borderRadius: BorderRadius.circular(Tk.radius),
-              border: Border.all(color: _hover ? Tk.ultra : Tk.line, width: _hover ? 2 : 1.5),
+              color: _hover ? p.ultraSoft : p.surface,
+              borderRadius: radius,
+              border: Border.all(color: _hover ? p.ultra : p.line, width: _hover ? 2 : 1.5),
             ),
-            child: Column(children: [
-              Icon(Icons.movie_creation_outlined, size: 36, color: _hover ? Tk.ultra : Tk.mute),
-              const SizedBox(height: 12),
-              Text(_hover ? 'Release to add this video' : 'Drop a video here', style: display(19)),
-              const SizedBox(height: 4),
-              const Text('or choose a file from your device', style: TextStyle(color: Tk.mute)),
-              const SizedBox(height: 14),
-              OutlinedButton(onPressed: widget.enabled ? _pick : null, child: const Text('Choose a file')),
-              const SizedBox(height: 12),
-              Text(widget.limitsText, style: const TextStyle(color: Tk.mute, fontSize: 13), textAlign: TextAlign.center),
-            ]),
+            child: ClipRRect(
+              borderRadius: radius,
+              child: Stack(children: [
+                SprocketOverlay(color: p.line),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
+                  child: Column(children: [
+                    Icon(Icons.movie_creation_outlined, size: 36, color: _hover ? p.ultra : p.mute),
+                    const SizedBox(height: 12),
+                    Text(_hover ? 'Release to add this video' : 'Drop a video here', style: ty.heading.copyWith(fontSize: 19)),
+                    const SizedBox(height: 4),
+                    Text('or choose a file from your device', style: ty.body.copyWith(color: p.mute)),
+                    const SizedBox(height: 14),
+                    OutlinedButton(onPressed: widget.enabled ? _pick : null, child: const Text('Choose a file')),
+                    const SizedBox(height: 12),
+                    Text(widget.limitsText, style: ty.caption, textAlign: TextAlign.center),
+                  ]),
+                ),
+              ]),
+            ),
           ),
         ),
       ),

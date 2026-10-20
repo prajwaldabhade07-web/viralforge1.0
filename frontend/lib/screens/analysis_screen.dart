@@ -8,8 +8,9 @@ import '../api/api_client.dart';
 import '../models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
+import '../util/platform.dart';
 import '../widgets/common.dart';
-import '../widgets/fx.dart';
+import '../widgets/pip.dart';
 import '../widgets/report_view.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
@@ -44,11 +45,15 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     try {
       final d = await ref.read(apiProvider).getAnalysis(widget.jobId);
       if (!mounted) return;
+      final wasActive = _detail?.job.isActive ?? false;
       setState(() {
         _detail = d;
         _error = null;
         _offline = false;
       });
+      if (wasActive && !d.job.isActive) {
+        notifyDone(d.job.status == 'completed' ? 'Your report is ready' : "Your analysis didn't finish", d.job.projectName ?? 'ViralForge');
+      }
       if (d.job.isActive) _timer = Timer(const Duration(milliseconds: 2500), _load);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -83,6 +88,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
       await ref.read(apiProvider).deleteAnalysis(job.id);
       ref.invalidate(projectAnalysesProvider(job.projectId));
       ref.invalidate(projectsProvider);
+      ref.invalidate(dashboardStatsProvider);
       if (mounted) {
         toast(context, 'Analysis deleted.');
         context.go('/projects/${job.projectId}');
@@ -92,39 +98,45 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     }
   }
 
+  Widget _header(Job job) {
+    final p = context.pal;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        TextButton.icon(
+          onPressed: () => context.go('/projects/${job.projectId}'),
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: Text(job.projectName ?? 'Back to project'),
+        ),
+        const Spacer(),
+        if (!job.isActive)
+          IconButton(tooltip: 'Delete analysis', icon: Icon(Icons.delete_outline, color: p.mute), onPressed: () => _delete(job)),
+      ]),
+      if (_offline) ...[
+        const InlineMessage(MsgKind.warn, 'Connection lost. Retrying automatically...'),
+        const SizedBox(height: 12),
+      ],
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final d = _detail;
     if (d == null) {
       return PageFrame(
-        child: _error != null
-            ? ErrorState(error: _error!, onRetry: _load)
-            : const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
+        child: _error != null ? ErrorState(error: _error!, onRetry: _load) : const SkeletonList(rows: 4),
       );
     }
     final job = d.job;
+    if (!job.isActive && job.status != 'failed' && d.report != null) {
+      return ReportView(key: ValueKey(job.id), report: d.report!, job: job, header: _header(job));
+    }
     return PageFrame(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          TextButton.icon(
-            onPressed: () => context.go('/projects/${job.projectId}'),
-            icon: const Icon(Icons.arrow_back, size: 18),
-            label: Text(job.projectName ?? 'Back to project'),
-          ),
-          const Spacer(),
-          if (!job.isActive)
-            IconButton(tooltip: 'Delete analysis', icon: const Icon(Icons.delete_outline, color: Tk.mute), onPressed: () => _delete(job)),
-        ]),
-        if (_offline) ...[
-          const InlineMessage(MsgKind.warn, 'Connection lost. Retrying automatically...'),
-          const SizedBox(height: 12),
-        ],
+        _header(job),
         if (job.isActive)
           ProgressPanel(job: job)
         else if (job.status == 'failed')
           _FailurePanel(job: job, busy: _busy, onRetry: _retry)
-        else if (d.report != null)
-          ReportView(report: d.report!, job: job)
         else
           const InlineMessage(MsgKind.warn, 'This analysis finished, but its report is not available.'),
       ]),
@@ -148,26 +160,30 @@ class ProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
+    final ty = context.ty;
     final script = job.inputType == 'script';
     final stages = _stages.where((s) => !(script && (s.$1 == 'preparing_video' || s.$1 == 'uploading'))).toList();
     final key = job.stage == 'validating' ? (script ? 'moderating' : 'preparing_video') : job.stage;
     var current = stages.indexWhere((s) => s.$1 == key);
     if (current < 0) current = 0;
     final retrying = job.stage == 'retrying';
+    final mood = moodForStage(job.status, job.stage);
     return Panel(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const FilmLoader(),
+        PipBooth(mood: mood),
+        const SizedBox(height: 16),
+        Text(job.status == 'queued' ? 'Your analysis is queued' : (script ? "Pip's reading your script" : "Pip's watching your video"),
+            style: ty.title),
+        const SizedBox(height: 4),
+        Text(moodCaption(mood), style: ty.bodyStrong.copyWith(color: p.ultra)),
+        const SizedBox(height: 6),
+        Text('You can leave this page. The analysis keeps running and will be in your history.', style: ty.body.copyWith(color: p.mute)),
         const SizedBox(height: 18),
-        Text(job.status == 'queued' ? 'Your analysis is queued' : 'Analysing your ${script ? 'script' : 'video'}', style: display(28)),
+        LinearProgressIndicator(value: job.progress / 100, minHeight: 8, borderRadius: BorderRadius.circular(4)),
         const SizedBox(height: 6),
-        Text(_funLine(job.stage), style: const TextStyle(color: Tk.ultra, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
-        const Text('You can leave this page. The analysis keeps running and will be in your history.', style: TextStyle(color: Tk.mute, height: 1.4)),
-        const SizedBox(height: 20),
-        LinearProgressIndicator(value: job.progress / 100, minHeight: 8, color: Tk.ultra, backgroundColor: Tk.track),
-        const SizedBox(height: 6),
-        Text('${job.progress}%', style: const TextStyle(color: Tk.mute, fontSize: 13)),
+        Text('${job.progress}%', style: ty.caption),
         if (retrying) ...[
           const SizedBox(height: 14),
           const InlineMessage(MsgKind.warn, 'The AI service was busy. Retrying automatically in a moment.'),
@@ -178,16 +194,18 @@ class ProgressPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 5),
             child: Row(children: [
               if (i < current)
-                const Icon(Icons.check_circle, color: Tk.good, size: 20)
+                Icon(Icons.check_circle, color: p.good, size: 20)
               else if (i == current && !retrying)
-                const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2.5, color: Tk.ultra)))
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Padding(padding: const EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2.5, color: p.ultra)),
+                )
               else
-                const Icon(Icons.circle_outlined, color: Tk.line, size: 20),
+                Icon(Icons.circle_outlined, color: p.line, size: 20),
               const SizedBox(width: 12),
               Text(stages[i].$2,
-                  style: TextStyle(
-                      fontWeight: i == current ? FontWeight.w700 : FontWeight.w500,
-                      color: i > current ? Tk.mute : Tk.ink)),
+                  style: TextStyle(fontWeight: i == current ? FontWeight.w700 : FontWeight.w500, color: i > current ? p.mute : p.text)),
             ]),
           ),
       ]),
@@ -203,23 +221,25 @@ class _FailurePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
+    final ty = context.ty;
     final blocked = job.isBlocked;
     return Panel(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (!blocked) ...[const PipBooth(mood: PipMood.failed, height: 190), const SizedBox(height: 14)],
         Row(children: [StatusPill('failed', blocked: blocked)]),
         const SizedBox(height: 14),
-        Text(blocked ? 'This submission was blocked' : "The analysis didn't finish", style: display(28)),
+        Text(blocked ? 'This submission was blocked' : "The analysis didn't finish", style: ty.title),
         const SizedBox(height: 10),
-        Text(job.errorMessage ?? 'Something went wrong while analysing.', style: const TextStyle(height: 1.5, fontSize: 15)),
+        Text(job.errorMessage ?? 'Something went wrong while analysing.', style: ty.body),
         if (!blocked) ...[
           const SizedBox(height: 6),
-          Text('Attempt ${job.attempts} of ${job.maxAttempts}', style: const TextStyle(color: Tk.mute, fontSize: 13)),
+          Text('Attempt ${job.attempts} of ${job.maxAttempts}', style: ty.caption.copyWith(color: p.mute)),
         ],
         const SizedBox(height: 20),
         Wrap(spacing: 10, runSpacing: 10, children: [
-          if (job.retryable)
-            FilledButton(onPressed: busy ? null : onRetry, child: const Text('Retry analysis')),
+          if (job.retryable) FilledButton(onPressed: busy ? null : onRetry, child: const Text('Retry analysis')),
           OutlinedButton(
             onPressed: () => context.go(job.retryable || blocked ? '/projects/${job.projectId}' : '/projects/${job.projectId}/new'),
             child: Text(job.retryable || blocked ? 'Back to project' : 'Start a new analysis'),
@@ -227,24 +247,5 @@ class _FailurePanel extends StatelessWidget {
         ]),
       ]),
     );
-  }
-}
-
-String _funLine(String stage) {
-  switch (stage) {
-    case 'preparing_video':
-    case 'uploading':
-      return 'Handing your clip to the AI. Usually takes 1 to 3 minutes in total.';
-    case 'moderating':
-    case 'analyzing':
-      return 'Watching your hook frame by frame...';
-    case 'simulating_audience':
-      return 'Ten very different viewers are scrolling past your video...';
-    case 'finalizing':
-      return 'Polishing your report. Almost there.';
-    case 'retrying':
-      return 'The AI was busy, trying again in a moment.';
-    default:
-      return 'Usually takes 1 to 3 minutes.';
   }
 }

@@ -18,6 +18,16 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Short-lived signed URL for playing a stored video.
+class SignedUrl {
+  final String url;
+  final int expiresIn;
+  const SignedUrl(this.url, this.expiresIn);
+
+  factory SignedUrl.fromJson(Map<String, dynamic> j) =>
+      SignedUrl(j['url'] as String, (j['expires_in'] as num?)?.toInt() ?? 300);
+}
+
 /// Thin typed wrapper over the versioned REST API (see docs/API.md).
 class ApiClient {
   final Dio _dio;
@@ -128,6 +138,9 @@ class ApiClient {
   }
 
   Future<void> deleteVideo(String id) => _run((o) => _dio.delete('/videos/$id', options: o), (_) {});
+
+  Future<SignedUrl> getVideoUrl(String id) =>
+      _run((o) => _dio.get('/videos/$id/url', options: o), (d) => SignedUrl.fromJson(_map(d)));
 
   // ---- analyses
   Future<Job> createAnalysis(String projectId, Map<String, dynamic> body) => _run(

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'api/auth_service.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/dashboard_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/new_analysis_screen.dart';
@@ -33,14 +34,14 @@ class _AuthRefresh extends ChangeNotifier {
 GoRouter buildRouter(AuthService auth) {
   final refresh = _AuthRefresh(auth);
   return GoRouter(
-    initialLocation: '/projects',
+    initialLocation: '/dashboard',
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
       final onLogin = loc == '/login';
       final onPublic = onLogin || loc == '/forgot-password';
       if (!auth.isSignedIn && !onPublic) return '/login';
-      if (auth.isSignedIn && onLogin) return '/projects';
+      if (auth.isSignedIn && onLogin) return '/dashboard';
       return null;
     },
     errorBuilder: (context, state) => Scaffold(
@@ -59,6 +60,7 @@ GoRouter buildRouter(AuthService auth) {
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
         routes: [
+          GoRoute(path: '/dashboard', builder: (context, state) => const DashboardScreen()),
           GoRoute(path: '/projects', builder: (context, state) => const ProjectsScreen()),
           GoRoute(
             path: '/projects/:id',

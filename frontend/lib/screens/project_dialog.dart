@@ -79,13 +79,13 @@ class _ProjectDialogState extends ConsumerState<_ProjectDialog> {
                 controller: _name,
                 autofocus: true,
                 maxLength: 100,
-                decoration: fieldDecoration('Project name', hint: 'Spring recipe series'),
+                decoration: fieldDecoration(context, 'Project name', hint: 'Spring recipe series'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Give the project a name.' : null,
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String?>(
                 value: _platform,
-                decoration: fieldDecoration('Main platform (optional)'),
+                decoration: fieldDecoration(context, 'Main platform (optional)'),
                 items: [
                   const DropdownMenuItem<String?>(value: null, child: Text('Not set')),
                   for (final e in platformLabels.entries) DropdownMenuItem<String?>(value: e.key, child: Text(e.value)),
@@ -96,13 +96,13 @@ class _ProjectDialogState extends ConsumerState<_ProjectDialog> {
               TextFormField(
                 controller: _niche,
                 maxLength: 100,
-                decoration: fieldDecoration('Niche (optional)', hint: 'Budget cooking'),
+                decoration: fieldDecoration(context, 'Niche (optional)', hint: 'Budget cooking'),
               ),
               const SizedBox(height: 6),
               TextFormField(
                 controller: _audience,
                 maxLength: 200,
-                decoration: fieldDecoration('Target audience (optional)', hint: 'College students'),
+                decoration: fieldDecoration(context, 'Target audience (optional)', hint: 'College students'),
               ),
             ]),
           ),
@@ -113,7 +113,7 @@ class _ProjectDialogState extends ConsumerState<_ProjectDialog> {
         FilledButton(
           onPressed: _busy ? null : _save,
           child: _busy
-              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+              ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: context.pal.onUltra))
               : Text(editing ? 'Save changes' : 'Create project'),
         ),
       ],

@@ -225,6 +225,10 @@ class FakeApi extends Fake implements ApiClient {
   }
 
   @override
+  Future<SignedUrl> getVideoUrl(String id) async =>
+      throw const ApiException(404, 'not_found', 'Video not found.');
+
+  @override
   Future<Job> createAnalysis(String projectId, Map<String, dynamic> body) async {
     if (createAnalysisError != null) {
       final e = createAnalysisError!;
@@ -282,7 +286,7 @@ Future<GoRouterHandle> pumpApp(
     overrides: [authServiceProvider.overrideWithValue(auth), apiProvider.overrideWithValue(api)],
     child: MaterialApp.router(theme: buildTheme(webFonts: false), routerConfig: router),
   ));
-  if (location != '/projects' && auth.isSignedIn) router.go(location);
+  if (auth.isSignedIn) router.go(location);
   if (settle) {
     await tester.pumpAndSettle();
   } else {

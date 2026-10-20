@@ -17,7 +17,7 @@ void main() {
     final api = apiWith(JobDetail(sampleJob(status: 'processing', stage: 'analyzing', progress: 50), null));
     await open(tester, api, settle: false);
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('Analysing your video'), findsOneWidget);
+    expect(find.text("Pip's watching your video"), findsOneWidget);
     expect(find.text('50%'), findsOneWidget);
     expect(find.text('Running the safety check'), findsOneWidget);
     expect(find.textContaining('You can leave this page'), findsOneWidget);
@@ -27,7 +27,7 @@ void main() {
   testWidgets('polling picks up completion and renders the full report', (tester) async {
     final api = apiWith(JobDetail(sampleJob(status: 'processing', stage: 'analyzing', progress: 50), null));
     await open(tester, api, settle: false);
-    expect(find.text('Analysing your video'), findsOneWidget);
+    expect(find.text("Pip's watching your video"), findsOneWidget);
     api.analyses['j1'] = JobDetail(sampleJob(scores: sampleScores), Report(sampleReportJson()));
     await tester.pump(const Duration(milliseconds: 2600));
     await tester.pumpAndSettle();
@@ -53,6 +53,22 @@ void main() {
     expect(find.textContaining('Mei, the non-native-English viewer'), findsOneWidget);
     expect(find.textContaining('cannot predict real-world performance'), findsOneWidget);
     handle.dispose();
+  });
+
+  testWidgets('recommendations can be ticked off', (tester) async {
+    final api = apiWith(JobDetail(sampleJob(scores: sampleScores), Report(sampleReportJson())));
+    await open(tester, api);
+    expect(find.byTooltip('Mark as done'), findsNWidgets(2));
+    await tester.tap(find.byTooltip('Mark as done').first);
+    await tester.pump();
+    expect(find.byTooltip('Mark as not done'), findsOneWidget);
+  });
+
+  testWidgets('a video that cannot load does not break the report', (tester) async {
+    final api = apiWith(JobDetail(sampleJob(scores: sampleScores), Report(sampleReportJson())));
+    await open(tester, api);
+    expect(find.textContaining('The video could not be loaded'), findsOneWidget);
+    expect(find.text('Viral Readiness'), findsOneWidget);
   });
 
   testWidgets('incomplete persona results are flagged, not hidden', (tester) async {

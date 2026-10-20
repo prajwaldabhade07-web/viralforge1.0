@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router.dart';
+import 'state/providers.dart';
 import 'theme.dart';
-import 'widgets/fx.dart';
 
 class ViralForgeApp extends ConsumerWidget {
   final bool webFonts;
@@ -15,8 +15,9 @@ class ViralForgeApp extends ConsumerWidget {
       title: 'ViralForge',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(webFonts: webFonts),
+      darkTheme: buildTheme(webFonts: webFonts, brightness: Brightness.dark),
+      themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
-      builder: (context, child) => CursorFx(child: child ?? const SizedBox.shrink()),
     );
   }
 }

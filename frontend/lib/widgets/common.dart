@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../theme.dart';
+import 'fx.dart';
+import 'pip.dart';
 
 class Wordmark extends StatelessWidget {
-  final Color color;
+  final Color? color;
   final double size;
-  const Wordmark({super.key, this.color = Tk.ink, this.size = 22});
+  const Wordmark({super.key, this.color, this.size = 22});
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
     Widget frame(Color c) => Container(
           width: size * 0.34,
           height: size * 0.62,
@@ -20,9 +25,9 @@ class Wordmark extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        frame(Tk.ultra),
-        frame(Tk.ultra),
-        frame(Tk.sodium),
+        frame(p.ultra),
+        frame(p.ultra),
+        frame(p.sodium),
         const SizedBox(width: 8),
         Flexible(
           child: Text(
@@ -30,7 +35,7 @@ class Wordmark extends StatelessWidget {
             maxLines: 1,
             softWrap: false,
             overflow: TextOverflow.ellipsis,
-            style: display(size, color: color, spacing: -0.6),
+            style: context.ty.heading.copyWith(fontSize: size, color: color ?? p.text, letterSpacing: -0.6),
           ),
         ),
       ],
@@ -43,19 +48,31 @@ class Panel extends StatelessWidget {
   final EdgeInsets padding;
   final Color? color;
   final Color? borderColor;
-  const Panel({super.key, required this.child, this.padding = const EdgeInsets.all(20), this.color, this.borderColor});
+  final bool raised;
+  const Panel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.color,
+    this.borderColor,
+    this.raised = false,
+  });
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: padding,
-        decoration: BoxDecoration(
-          color: color ?? Tk.gate,
-          borderRadius: BorderRadius.circular(Tk.radius),
-          border: Border.all(color: borderColor ?? Tk.line),
-        ),
-        child: child,
-      );
+  Widget build(BuildContext context) {
+    final p = context.pal;
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: color ?? p.surface,
+        borderRadius: BorderRadius.circular(kRadius),
+        border: Border.all(color: borderColor ?? p.line),
+        boxShadow: raised ? p.lift : null,
+      ),
+      child: child,
+    );
+  }
 }
 
 /// Centered, width-limited, scrollable page body.
@@ -81,13 +98,14 @@ class PageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ty = context.ty;
     final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: display(34, height: 1.1)),
+        Text(title, style: ty.title),
         if (subtitle != null && subtitle!.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text(subtitle!, style: const TextStyle(color: Tk.mute, fontSize: 15, height: 1.4)),
+          Text(subtitle!, style: ty.body.copyWith(color: context.pal.mute)),
         ],
       ],
     );
@@ -121,7 +139,7 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: 28, bottom: 12),
         child: Row(children: [
-          Expanded(child: Text(text, style: display(22))),
+          Expanded(child: Text(text, style: context.ty.heading)),
           if (trailing != null) trailing!,
         ]),
       );
@@ -137,11 +155,12 @@ class InlineMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
     final (bg, fg, icon) = switch (kind) {
-      MsgKind.error => (Tk.badSoft, Tk.bad, Icons.error_outline),
-      MsgKind.warn => (Tk.warnSoft, Tk.warn, Icons.warning_amber_rounded),
-      MsgKind.success => (Tk.goodSoft, Tk.good, Icons.check_circle_outline),
-      MsgKind.info => (Tk.ultraSoft, Tk.ultra, Icons.info_outline),
+      MsgKind.error => (p.badSoft, p.bad, Icons.error_outline),
+      MsgKind.warn => (p.warnSoft, p.warn, Icons.warning_amber_rounded),
+      MsgKind.success => (p.goodSoft, p.good, Icons.check_circle_outline),
+      MsgKind.info => (p.ultraSoft, p.ultra, Icons.info_outline),
     };
     return Container(
       width: double.infinity,
@@ -164,13 +183,14 @@ class StatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
     final (label, bg, fg) = blocked
-        ? ('Blocked', Tk.badSoft, Tk.bad)
+        ? ('Blocked', p.badSoft, p.bad)
         : switch (status) {
-            'queued' => ('Queued', Tk.track, Tk.mute),
-            'processing' => ('Analysing', Tk.ultraSoft, Tk.ultra),
-            'completed' => ('Complete', Tk.goodSoft, Tk.good),
-            _ => ('Failed', Tk.badSoft, Tk.bad),
+            'queued' => ('Queued', p.track, p.mute),
+            'processing' => ('Analysing', p.ultraSoft, p.ultra),
+            'completed' => ('Complete', p.goodSoft, p.good),
+            _ => ('Failed', p.badSoft, p.bad),
           };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -180,41 +200,43 @@ class StatusPill extends StatelessWidget {
   }
 }
 
+/// Pip plus one clear action.
 class EmptyState extends StatelessWidget {
   final String title;
   final String body;
   final String? actionLabel;
   final VoidCallback? onAction;
-  const EmptyState({super.key, required this.title, required this.body, this.actionLabel, this.onAction});
+  final PipMood mood;
+  const EmptyState({
+    super.key,
+    required this.title,
+    required this.body,
+    this.actionLabel,
+    this.onAction,
+    this.mood = PipMood.idle,
+  });
 
   @override
-  Widget build(BuildContext context) => Panel(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-        child: Column(children: [
-          SizedBox(
-            width: 64,
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              for (final c in [Tk.track, Tk.track, Tk.sodium])
-                Container(
-                    width: 14,
-                    height: 24,
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3))),
-            ]),
-          ),
+  Widget build(BuildContext context) {
+    final ty = context.ty;
+    return Panel(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      child: Column(children: [
+        PipMark(mood: mood, size: 96),
+        const SizedBox(height: 8),
+        Text(title, style: ty.heading, textAlign: TextAlign.center),
+        const SizedBox(height: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Text(body, textAlign: TextAlign.center, style: ty.body.copyWith(color: context.pal.mute)),
+        ),
+        if (actionLabel != null) ...[
           const SizedBox(height: 18),
-          Text(title, style: display(20), textAlign: TextAlign.center),
-          const SizedBox(height: 6),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Text(body, textAlign: TextAlign.center, style: const TextStyle(color: Tk.mute, height: 1.45)),
-          ),
-          if (actionLabel != null) ...[
-            const SizedBox(height: 18),
-            FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
-        ]),
-      );
+          FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+        ],
+      ]),
+    );
+  }
 }
 
 String errorText(Object e) => e is ApiException ? e.message : 'Something went wrong. Try again.';
@@ -235,6 +257,26 @@ class ErrorState extends StatelessWidget {
       );
 }
 
+/// Placeholder rows while a list loads.
+class SkeletonList extends StatelessWidget {
+  final int rows;
+  const SkeletonList({super.key, this.rows = 3});
+
+  @override
+  Widget build(BuildContext context) => Panel(
+        child: Column(children: [
+          for (var i = 0; i < rows; i++) ...[
+            if (i > 0) const SizedBox(height: 18),
+            const Row(children: [
+              Expanded(child: Skeleton(height: 16)),
+              SizedBox(width: 24),
+              Skeleton(width: 90, height: 16),
+            ]),
+          ],
+        ]),
+      );
+}
+
 class AsyncBody<T> extends StatelessWidget {
   final AsyncValue<T> value;
   final Widget Function(T data) data;
@@ -243,10 +285,54 @@ class AsyncBody<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => value.when(
+        skipLoadingOnReload: true,
+        skipLoadingOnRefresh: true,
         data: data,
-        loading: () => const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
+        loading: () => const SkeletonList(),
         error: (e, _) => ErrorState(error: e, onRetry: onRetry),
       );
+}
+
+/// Calls [onTick] every few seconds while [active]. Used to keep in-progress jobs live.
+class LivePoller extends StatefulWidget {
+  final bool active;
+  final VoidCallback onTick;
+  final Duration every;
+  const LivePoller({super.key, required this.active, required this.onTick, this.every = const Duration(seconds: 4)});
+
+  @override
+  State<LivePoller> createState() => _LivePollerState();
+}
+
+class _LivePollerState extends State<LivePoller> {
+  Timer? _t;
+
+  @override
+  void initState() {
+    super.initState();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(LivePoller old) {
+    super.didUpdateWidget(old);
+    _sync();
+  }
+
+  void _sync() {
+    _t?.cancel();
+    _t = null;
+    if (widget.active) _t = Timer.periodic(widget.every, (_) => widget.onTick());
+  }
+
+  @override
+  void dispose() {
+    _t?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 Future<bool> confirmDialog(BuildContext context,
@@ -259,7 +345,7 @@ Future<bool> confirmDialog(BuildContext context,
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Tk.bad),
+          style: FilledButton.styleFrom(backgroundColor: ctx.pal.bad, foregroundColor: ctx.pal.onUltra),
           onPressed: () => Navigator.pop(ctx, true),
           child: Text(confirmLabel),
         ),

@@ -57,10 +57,14 @@ class ProjectScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final pal = context.pal;
+    final ty = context.ty;
     final project = ref.watch(projectProvider(projectId));
+    final analyses = ref.watch(projectAnalysesProvider(projectId));
+    final anyActive = analyses.valueOrNull?.items.any((j) => j.isActive) ?? false;
     return PageFrame(
       child: project.when(
-        loading: () => const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator())),
+        loading: () => const SkeletonList(rows: 4),
         error: (e, _) => ErrorState(error: e, onRetry: () => _refresh(ref)),
         data: (p) {
           final meta = [
@@ -69,6 +73,10 @@ class ProjectScreen extends ConsumerWidget {
             if ((p.targetAudience ?? '').isNotEmpty) 'for ${p.targetAudience}',
           ].join(', ');
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            LivePoller(
+              active: Fx.enabled && anyActive,
+              onTick: () => ref.invalidate(projectAnalysesProvider(projectId)),
+            ),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -103,7 +111,7 @@ class ProjectScreen extends ConsumerWidget {
                   child: Container(
                     height: 46,
                     padding: const EdgeInsets.symmetric(horizontal: 14),
-                    decoration: BoxDecoration(border: Border.all(color: Tk.line), borderRadius: BorderRadius.circular(10), color: Tk.gate),
+                    decoration: BoxDecoration(border: Border.all(color: pal.line), borderRadius: BorderRadius.circular(10), color: pal.surface),
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [Text('Options', style: TextStyle(fontWeight: FontWeight.w600)), Icon(Icons.arrow_drop_down)]),
                   ),
                 ),
@@ -111,12 +119,12 @@ class ProjectScreen extends ConsumerWidget {
             ),
             const SectionTitle('Analyses'),
             AsyncBody<Paged<Job>>(
-              value: ref.watch(projectAnalysesProvider(projectId)),
+              value: analyses,
               onRetry: () => _refresh(ref),
               data: (page) => page.items.isEmpty
                   ? EmptyState(
                       title: 'No analyses yet',
-                      body: 'Upload a video to get scores, fixes and simulated audience reactions.',
+                      body: 'Upload a video and Pip will score it, flag the fixes and gather ten viewers.',
                       actionLabel: 'Upload a video',
                       onAction: () => context.go('/projects/${p.id}/new'),
                     )
@@ -129,27 +137,27 @@ class ProjectScreen extends ConsumerWidget {
               value: ref.watch(projectVideosProvider(projectId)),
               onRetry: () => _refresh(ref),
               data: (page) => page.items.isEmpty
-                  ? const Text('No videos uploaded.', style: TextStyle(color: Tk.mute))
+                  ? Text('No videos uploaded.', style: ty.caption.copyWith(fontSize: 14))
                   : RowList(children: [
                       for (final v in page.items)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           child: Row(children: [
-                            const Icon(Icons.movie_outlined, color: Tk.mute),
+                            Icon(Icons.movie_outlined, color: pal.mute),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(v.filename, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                Text(v.filename, maxLines: 1, overflow: TextOverflow.ellipsis, style: ty.bodyStrong),
                                 Text(
                                   '${formatBytes(v.sizeBytes)}${v.durationSeconds != null ? ', ${formatDuration(v.durationSeconds!)}' : ''}',
-                                  style: const TextStyle(color: Tk.mute, fontSize: 13),
+                                  style: ty.caption,
                                 ),
                               ]),
                             ),
                             TextButton(onPressed: () => context.go('/projects/${p.id}/new?video=${v.id}'), child: const Text('Analyse')),
                             IconButton(
                               tooltip: 'Delete video',
-                              icon: const Icon(Icons.delete_outline, color: Tk.mute),
+                              icon: Icon(Icons.delete_outline, color: pal.mute),
                               onPressed: () => _deleteVideo(context, ref, v),
                             ),
                           ]),

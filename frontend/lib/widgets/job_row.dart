@@ -15,6 +15,8 @@ class JobRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
+    final ty = context.ty;
     final title = showProject && (job.projectName ?? '').isNotEmpty
         ? job.projectName!
         : '${platformLabel(job.platform)}, ${job.niche}';
@@ -28,20 +30,19 @@ class JobRow extends StatelessWidget {
           final scoreBlock = SizedBox(
             width: 150,
             child: score == null
-                ? StatusPill(job.status, blocked: job.isBlocked)
+                ? Align(alignment: Alignment.centerLeft, child: StatusPill(job.status, blocked: job.isBlocked))
                 : Row(children: [
-                    Text('$score', style: display(26, height: 1)),
+                    Text('$score', style: ty.title.copyWith(fontSize: 26, height: 1)),
                     const SizedBox(width: 10),
                     Expanded(child: FrameStrip(value: score.toDouble(), cells: 10, height: 12, animate: false)),
                   ]),
           );
           final text = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: display(17, weight: FontWeight.w600)),
-            if (sub.isNotEmpty)
-              Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Tk.mute, fontSize: 14)),
+            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: ty.heading.copyWith(fontSize: 17)),
+            if (sub.isNotEmpty) Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis, style: ty.caption.copyWith(fontSize: 14)),
             const SizedBox(height: 2),
             Text('${job.inputType == 'script' ? 'Script' : 'Video'} analysis, ${formatDateTime(job.createdAt)}',
-                style: const TextStyle(color: Tk.mute, fontSize: 12.5)),
+                style: ty.caption.copyWith(fontSize: 12.5)),
           ]);
           if (c.maxWidth < 520) {
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -55,7 +56,7 @@ class JobRow extends StatelessWidget {
             const SizedBox(width: 16),
             scoreBlock,
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: Tk.mute),
+            Icon(Icons.chevron_right, color: p.mute),
           ]);
         }),
       ),
@@ -72,7 +73,7 @@ class RowList extends StatelessWidget {
   Widget build(BuildContext context) => Panel(
         padding: EdgeInsets.zero,
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(Tk.radius),
+          borderRadius: BorderRadius.circular(kRadius),
           child: Column(children: [
             for (var i = 0; i < children.length; i++) ...[
               if (i > 0) const Divider(),

@@ -22,7 +22,7 @@ void main() {
     expect(auth.signInCalls, isEmpty);
   });
 
-  testWidgets('successful sign-in opens the projects page', (tester) async {
+  testWidgets('successful sign-in opens the dashboard', (tester) async {
     final auth = FakeAuth(signedIn: false);
     await pumpApp(tester, auth: auth, api: FakeApi());
     await tester.enterText(find.byType(TextFormField).at(0), '  maya@example.com ');
@@ -30,8 +30,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
     expect(auth.signInCalls.single, ['maya@example.com', 'correct horse']);
-    expect(find.text('Projects'), findsWidgets);
-    expect(find.text('No projects yet'), findsOneWidget);
+    expect(find.text('Drop a clip. Pip does the rest.'), findsOneWidget);
   });
 
   testWidgets('failed sign-in shows the reason', (tester) async {
@@ -64,9 +63,11 @@ void main() {
     expect(find.textContaining('Check your inbox'), findsOneWidget);
   });
 
-  testWidgets('signing out returns to the sign-in screen', (tester) async {
+  testWidgets('signing out from the account menu returns to the sign-in screen', (tester) async {
     final auth = FakeAuth();
     await pumpApp(tester, auth: auth, api: FakeApi());
+    await tester.tap(find.byKey(const Key('account-menu')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Know how your video will land'), findsOneWidget);

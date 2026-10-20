@@ -1,15 +1,18 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
 /// The signature element: a film strip of frames. Frames are ultramarine up to the score and the
-/// last filled frame is the sodium-yellow "playhead". Animates in once; honours reduced motion.
+/// last filled frame is the sodium-yellow "playhead". Optional sprocket holes above and below.
 class FrameStrip extends StatelessWidget {
   final double value; // 0-100
   final int cells;
   final double height;
   final bool animate;
-  final Color trackColor;
+  final bool perforated;
+  final Color? trackColor;
   final String? semanticLabel;
 
   const FrameStrip({
@@ -18,12 +21,14 @@ class FrameStrip extends StatelessWidget {
     this.cells = 20,
     this.height = 16,
     this.animate = true,
-    this.trackColor = Tk.track,
+    this.perforated = false,
+    this.trackColor,
     this.semanticLabel,
   });
 
   @override
   Widget build(BuildContext context) {
+    final p = context.pal;
     final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final animated = animate && !reduce;
     final v = value.clamp(0, 100).toDouble();
@@ -35,9 +40,19 @@ class FrameStrip extends StatelessWidget {
           duration: animated ? const Duration(milliseconds: 800) : Duration.zero,
           curve: Curves.easeOutCubic,
           builder: (context, t, _) => SizedBox(
-            height: height,
+            height: height + (perforated ? 16 : 0),
             width: double.infinity,
-            child: CustomPaint(painter: _StripPainter(t, cells, trackColor)),
+            child: CustomPaint(
+              painter: _StripPainter(
+                value: t,
+                cells: cells,
+                track: trackColor ?? p.track,
+                ultra: p.ultra,
+                sodium: p.sodium,
+                hole: p.text.withValues(alpha: 0.22),
+                perforated: perforated,
+              ),
+            ),
           ),
         ),
       ),
@@ -49,23 +64,52 @@ class _StripPainter extends CustomPainter {
   final double value;
   final int cells;
   final Color track;
-  _StripPainter(this.value, this.cells, this.track);
+  final Color ultra;
+  final Color sodium;
+  final Color hole;
+  final bool perforated;
+  _StripPainter({
+    required this.value,
+    required this.cells,
+    required this.track,
+    required this.ultra,
+    required this.sodium,
+    required this.hole,
+    required this.perforated,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     const gap = 3.0;
+    final top = perforated ? 8.0 : 0.0;
+    final ch = size.height - (perforated ? 16.0 : 0.0);
     final cw = (size.width - gap * (cells - 1)) / cells;
+    if (cw <= 0 || ch <= 0) return;
     final filled = (value / 100 * cells).round().clamp(0, cells);
+    final holePaint = Paint()..color = hole;
     for (var i = 0; i < cells; i++) {
-      final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(i * (cw + gap), 0, cw, size.height),
-        const Radius.circular(2.5),
-      );
-      final color = i < filled - 1 ? Tk.ultra : (i == filled - 1 ? Tk.sodium : track);
-      canvas.drawRRect(rect, Paint()..color = color);
+      final rect = Rect.fromLTWH(i * (cw + gap), top, cw, ch);
+      final color = i < filled - 1 ? ultra : (i == filled - 1 ? sodium : track);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2.5)), Paint()..color = color);
+      if (perforated) {
+        final hw = math.min(cw * 0.5, 8.0);
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(rect.center.dx, 3), width: hw, height: 3.5), const Radius.circular(1.5)),
+            holePaint);
+        canvas.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset(rect.center.dx, size.height - 3), width: hw, height: 3.5), const Radius.circular(1.5)),
+            holePaint);
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_StripPainter old) => old.value != value || old.cells != cells || old.track != track;
+  bool shouldRepaint(_StripPainter old) =>
+      old.value != value ||
+      old.cells != cells ||
+      old.track != track ||
+      old.ultra != ultra ||
+      old.sodium != sodium ||
+      old.perforated != perforated;
 }
