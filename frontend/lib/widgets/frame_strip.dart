@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// The signature element: a film strip of frames. Frames are ultramarine up to the score and the
+/// The signature element: a film strip of frames. Frames are accent-coloured up to the score and the
 /// last filled frame is the sodium-yellow "playhead". Optional sprocket holes above and below.
 class FrameStrip extends StatelessWidget {
   final double value; // 0-100
@@ -13,6 +13,7 @@ class FrameStrip extends StatelessWidget {
   final bool animate;
   final bool perforated;
   final Color? trackColor;
+  final Color? fillColor;
   final String? semanticLabel;
 
   const FrameStrip({
@@ -23,6 +24,7 @@ class FrameStrip extends StatelessWidget {
     this.animate = true,
     this.perforated = false,
     this.trackColor,
+    this.fillColor,
     this.semanticLabel,
   });
 
@@ -37,8 +39,8 @@ class FrameStrip extends StatelessWidget {
       child: ExcludeSemantics(
         child: TweenAnimationBuilder<double>(
           tween: Tween<double>(begin: animated ? 0 : v, end: v),
-          duration: animated ? const Duration(milliseconds: 800) : Duration.zero,
-          curve: Curves.easeOutCubic,
+          duration: animated ? const Duration(milliseconds: 250) : Duration.zero,
+          curve: Curves.easeOut,
           builder: (context, t, _) => SizedBox(
             height: height + (perforated ? 16 : 0),
             width: double.infinity,
@@ -47,7 +49,7 @@ class FrameStrip extends StatelessWidget {
                 value: t,
                 cells: cells,
                 track: trackColor ?? p.track,
-                ultra: p.ultra,
+                ultra: fillColor ?? p.ultra,
                 sodium: p.sodium,
                 hole: p.text.withValues(alpha: 0.22),
                 perforated: perforated,

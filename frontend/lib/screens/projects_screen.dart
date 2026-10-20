@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../util/format.dart';
 import '../util/studio.dart';
 import '../widgets/common.dart';
+import '../widgets/fx.dart';
 import 'project_dialog.dart';
 
 class ProjectsScreen extends ConsumerWidget {
@@ -54,7 +55,8 @@ class ProjectsScreen extends ConsumerWidget {
               final cols = c.maxWidth > 900 ? 3 : (c.maxWidth > 560 ? 2 : 1);
               final w = (c.maxWidth - (cols - 1) * 14) / cols;
               return Wrap(spacing: 14, runSpacing: 14, children: [
-                for (var i = 0; i < items.length; i++) SizedBox(width: w, child: _ProjectCard(p: items[i], index: i)),
+                for (var i = 0; i < items.length; i++)
+                  SizedBox(width: w, child: Reveal(delayMs: 50 * i, child: Lift(child: _ProjectCard(p: items[i], index: i)))),
               ]);
             });
           },

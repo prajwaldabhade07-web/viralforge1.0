@@ -6,6 +6,94 @@ import '../theme.dart';
 
 double _c01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
 
+/// Fades and slides its child in once (260 ms, ease-out), optionally staggered with [delayMs].
+class Reveal extends StatefulWidget {
+  final Widget child;
+  final int delayMs;
+  final double dy;
+  const Reveal({super.key, required this.child, this.delayMs = 0, this.dy = 14});
+
+  @override
+  State<Reveal> createState() => _RevealState();
+}
+
+class _RevealState extends State<Reveal> with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+  late final Animation<double> _a;
+
+  @override
+  void initState() {
+    super.initState();
+    final total = 260 + widget.delayMs;
+    _c = AnimationController(vsync: this, duration: Duration(milliseconds: total));
+    _a = CurvedAnimation(parent: _c, curve: Interval(widget.delayMs / total, 1, curve: Curves.easeOut));
+    if (Fx.enabled) {
+      _c.forward();
+    } else {
+      _c.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Fx.enabled) return widget.child;
+    return AnimatedBuilder(
+      animation: _a,
+      child: widget.child,
+      builder: (context, child) => Opacity(
+        opacity: _c01(_a.value),
+        child: Transform.translate(offset: Offset(0, (1 - _a.value) * widget.dy), child: child),
+      ),
+    );
+  }
+}
+
+/// Lifts on hover; presses in on tap or click (the touch equivalent of hover).
+class Lift extends StatefulWidget {
+  final Widget child;
+  final double radius;
+  const Lift({super.key, required this.child, this.radius = kRadius});
+
+  @override
+  State<Lift> createState() => _LiftState();
+}
+
+class _LiftState extends State<Lift> {
+  bool _hover = false;
+  bool _down = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!Fx.enabled) return widget.child;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() {
+        _hover = false;
+        _down = false;
+      }),
+      child: Listener(
+        onPointerDown: (_) => setState(() => _down = true),
+        onPointerUp: (_) => setState(() => _down = false),
+        onPointerCancel: (_) => setState(() => _down = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          transformAlignment: Alignment.center,
+          transform: Matrix4.translationValues(0, _hover ? -3 : 0, 0)..scale(_down ? 0.985 : 1.0),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(widget.radius), boxShadow: _hover ? context.pal.lift : const []),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
 /// Loading placeholder. Pulses gently; static when motion is off.
 class Skeleton extends StatefulWidget {
   final double? width;
@@ -35,9 +123,8 @@ class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final p = context.pal;
     final box = DecoratedBox(
-      decoration: BoxDecoration(color: p.track, borderRadius: BorderRadius.circular(widget.radius)),
+      decoration: BoxDecoration(color: context.pal.track, borderRadius: BorderRadius.circular(widget.radius)),
       child: SizedBox(width: widget.width ?? double.infinity, height: widget.height),
     );
     if (!Fx.enabled) return box;
@@ -49,7 +136,7 @@ class _SkeletonState extends State<Skeleton> with SingleTickerProviderStateMixin
   }
 }
 
-/// Counts up to [value]. Static when motion is off.
+/// Counts up to [value] in 250 ms. Static when motion is off.
 class CountUp extends StatelessWidget {
   final int value;
   final TextStyle style;
@@ -60,8 +147,8 @@ class CountUp extends StatelessWidget {
     if (!Fx.enabled) return Text('$value', style: style);
     return TweenAnimationBuilder<double>(
       tween: Tween<double>(begin: 0, end: value.toDouble()),
-      duration: const Duration(milliseconds: 600),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
       builder: (context, v, _) => Text('${v.round()}', style: style),
     );
   }

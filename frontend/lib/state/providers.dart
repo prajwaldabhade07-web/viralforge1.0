@@ -5,7 +5,9 @@ import '../api/api_client.dart';
 import '../api/auth_service.dart';
 import '../config.dart';
 import '../models.dart';
+import '../theme.dart';
 import '../util/platform.dart';
+import '../util/profile.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => SupabaseAuthService());
 
@@ -45,21 +47,16 @@ final projectVideosProvider = FutureProvider.autoDispose.family<Paged<VideoItem>
 final projectAnalysesProvider =
     FutureProvider.autoDispose.family<Paged<Job>, String>((ref, id) => ref.watch(apiProvider).projectAnalyses(id));
 
-// ───────────── Theme mode (system by default, persisted in the browser) ─────────────
+// ───────────── Theme mode, accent and profile (persisted in the browser) ─────────────
 
 class ThemeModeController extends StateNotifier<ThemeMode> {
   ThemeModeController() : super(_load());
 
-  static ThemeMode _load() {
-    switch (readPref('vf_theme')) {
-      case 'light':
-        return ThemeMode.light;
-      case 'dark':
-        return ThemeMode.dark;
-      default:
-        return ThemeMode.system;
-    }
-  }
+  static ThemeMode _load() => switch (readPref('vf_theme')) {
+        'light' => ThemeMode.light,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.system,
+      };
 
   void set(ThemeMode mode) {
     state = mode;
@@ -68,6 +65,33 @@ class ThemeModeController extends StateNotifier<ThemeMode> {
 }
 
 final themeModeProvider = StateNotifierProvider<ThemeModeController, ThemeMode>((ref) => ThemeModeController());
+
+class AccentController extends StateNotifier<int> {
+  AccentController() : super(_load());
+
+  static int _load() {
+    final i = int.tryParse(readPref('vf_accent') ?? '');
+    return (i != null && i >= 0 && i < kAccents.length) ? i : 0;
+  }
+
+  void set(int i) {
+    state = i;
+    writePref('vf_accent', '$i');
+  }
+}
+
+final accentProvider = StateNotifierProvider<AccentController, int>((ref) => AccentController());
+
+class ProfileController extends StateNotifier<Profile> {
+  ProfileController() : super(Profile.load());
+
+  void set(Profile p) {
+    state = p;
+    p.save();
+  }
+}
+
+final profileProvider = StateNotifierProvider<ProfileController, Profile>((ref) => ProfileController());
 
 // ───────────── Dashboard numbers, all from the existing history endpoint ─────────────
 
@@ -78,29 +102,39 @@ class NextFix {
   const NextFix(this.title, this.detail, this.jobId);
 }
 
+class ScorePoint {
+  final int score;
+  final DateTime? at;
+  final String id;
+  const ScorePoint(this.score, this.at, this.id);
+}
+
 class DashStats {
   final int total;
   final int completed;
-  final double? average;
-  final int? best;
-  final List<int> trend; // oldest -> newest
-  final List<Job> latest;
-  final int? latestScore;
-  final NextFix? fix;
   final int weekVideos;
-  final List<bool> weekDays; // last 7 days, oldest first, today last
+  final int weekPrev;
+  final double? average;
+  final ScorePoint? best;
+  final List<ScorePoint> points; // last 12 scores, oldest -> newest
+  final List<ScorePoint> prev; // the 12 before those, oldest -> newest
+  final List<Job> latest;
+  final NextFix? fix;
   const DashStats({
     this.total = 0,
     this.completed = 0,
+    this.weekVideos = 0,
+    this.weekPrev = 0,
     this.average,
     this.best,
-    this.trend = const [],
+    this.points = const [],
+    this.prev = const [],
     this.latest = const [],
-    this.latestScore,
     this.fix,
-    this.weekVideos = 0,
-    this.weekDays = const [false, false, false, false, false, false, false],
   });
+
+  ScorePoint? get last => points.isEmpty ? null : points.last;
+  int? get change => points.length > 1 ? points.last.score - points[points.length - 2].score : null;
 }
 
 final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async {
@@ -108,30 +142,22 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async
   try {
     final page = await api.history(limit: 30);
     final scored = page.items.where((j) => j.overall != null).toList(); // newest first
-    final scores = scored.map((j) => j.overall!).toList();
+    final all = [for (final j in scored) ScorePoint(j.overall!, DateTime.tryParse(j.createdAt)?.toLocal(), j.id)];
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final days = List<bool>.filled(7, false);
-    var week = 0;
-    for (final j in page.items) {
-      final d = DateTime.tryParse(j.createdAt)?.toLocal();
-      if (d == null || j.inputType != 'video') continue;
-      final ago = today.difference(DateTime(d.year, d.month, d.day)).inDays;
-      if (ago >= 0 && ago < 7) {
-        days[6 - ago] = true;
-        week++;
-      }
-    }
+    int within(int from, int to) => page.items.where((j) {
+          final d = DateTime.tryParse(j.createdAt)?.toLocal();
+          if (d == null) return false;
+          final ago = today.difference(DateTime(d.year, d.month, d.day)).inDays;
+          return ago >= from && ago < to;
+        }).length;
 
     NextFix? fix;
     if (scored.isNotEmpty) {
       try {
-        final detail = await api.getAnalysis(scored.first.id);
-        final recs = detail.report?.recommendations ?? const <Map<String, dynamic>>[];
-        if (recs.isNotEmpty) {
-          fix = NextFix('${recs.first['title']}', '${recs.first['detail']}', scored.first.id);
-        }
+        final recs = (await api.getAnalysis(scored.first.id)).report?.recommendations ?? const <Map<String, dynamic>>[];
+        if (recs.isNotEmpty) fix = NextFix('${recs.first['title']}', '${recs.first['detail']}', scored.first.id);
       } catch (_) {
         // The card simply shows its empty text.
       }
@@ -139,15 +165,15 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async
 
     return DashStats(
       total: page.total,
-      completed: scores.length,
-      average: scores.isEmpty ? null : scores.reduce((a, b) => a + b) / scores.length,
-      best: scores.isEmpty ? null : scores.reduce((a, b) => a > b ? a : b),
-      trend: scores.take(8).toList().reversed.toList(),
+      completed: all.length,
+      weekVideos: within(0, 7),
+      weekPrev: within(7, 14),
+      average: all.isEmpty ? null : all.map((e) => e.score).reduce((a, b) => a + b) / all.length,
+      best: all.isEmpty ? null : all.reduce((a, b) => b.score > a.score ? b : a),
+      points: all.take(12).toList().reversed.toList(),
+      prev: all.skip(12).take(12).toList().reversed.toList(),
       latest: page.items.take(3).toList(),
-      latestScore: scores.isEmpty ? null : scores.first,
       fix: fix,
-      weekVideos: week,
-      weekDays: days,
     );
   } catch (_) {
     return const DashStats();

@@ -11,10 +11,15 @@ import 'screens/dashboard_screen.dart';
 import 'screens/forgot_password_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/new_analysis_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/project_screen.dart';
 import 'screens/projects_screen.dart';
+import 'screens/settings_screen.dart';
 import 'screens/shell.dart';
 import 'state/providers.dart';
+import 'theme.dart';
+import 'util/profile.dart';
 import 'widgets/common.dart';
 
 /// Re-runs route redirects whenever the auth session changes (sign in, sign out, expiry).
@@ -31,6 +36,21 @@ class _AuthRefresh extends ChangeNotifier {
   }
 }
 
+/// Page changes cross-fade (200 ms, ease-out); instant when motion is off.
+Page<void> _fade(BuildContext context, GoRouterState state, Widget child) {
+  final d = (Fx.enabled && !(MediaQuery.maybeOf(context)?.disableAnimations ?? false))
+      ? const Duration(milliseconds: 200)
+      : Duration.zero;
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: d,
+    reverseTransitionDuration: d,
+    transitionsBuilder: (context, anim, secondary, c) =>
+        FadeTransition(opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut), child: c),
+  );
+}
+
 GoRouter buildRouter(AuthService auth) {
   final refresh = _AuthRefresh(auth);
   return GoRouter(
@@ -41,7 +61,7 @@ GoRouter buildRouter(AuthService auth) {
       final onLogin = loc == '/login';
       final onPublic = onLogin || loc == '/forgot-password';
       if (!auth.isSignedIn && !onPublic) return '/login';
-      if (auth.isSignedIn && onLogin) return '/dashboard';
+      if (auth.isSignedIn && onLogin) return onboardingDone(auth.email) ? '/dashboard' : '/welcome';
       return null;
     },
     errorBuilder: (context, state) => Scaffold(
@@ -57,27 +77,28 @@ GoRouter buildRouter(AuthService auth) {
     routes: [
       GoRoute(path: '/login', builder: (context, state) => const AuthScreen()),
       GoRoute(path: '/forgot-password', builder: (context, state) => const ForgotPasswordScreen()),
+      GoRoute(path: '/welcome', builder: (context, state) => const OnboardingScreen()),
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
         routes: [
-          GoRoute(path: '/dashboard', builder: (context, state) => const DashboardScreen()),
-          GoRoute(path: '/projects', builder: (context, state) => const ProjectsScreen()),
+          GoRoute(path: '/dashboard', pageBuilder: (c, s) => _fade(c, s, const DashboardScreen())),
+          GoRoute(path: '/projects', pageBuilder: (c, s) => _fade(c, s, const ProjectsScreen())),
           GoRoute(
             path: '/projects/:id',
-            builder: (context, state) => ProjectScreen(projectId: state.pathParameters['id']!),
+            pageBuilder: (c, s) => _fade(c, s, ProjectScreen(projectId: s.pathParameters['id']!)),
           ),
           GoRoute(
             path: '/projects/:id/new',
-            builder: (context, state) => NewAnalysisScreen(
-              projectId: state.pathParameters['id']!,
-              existingVideoId: state.uri.queryParameters['video'],
-            ),
+            pageBuilder: (c, s) => _fade(
+                c, s, NewAnalysisScreen(projectId: s.pathParameters['id']!, existingVideoId: s.uri.queryParameters['video'])),
           ),
           GoRoute(
             path: '/analyses/:id',
-            builder: (context, state) => AnalysisScreen(jobId: state.pathParameters['id']!),
+            pageBuilder: (c, s) => _fade(c, s, AnalysisScreen(jobId: s.pathParameters['id']!)),
           ),
-          GoRoute(path: '/history', builder: (context, state) => const HistoryScreen()),
+          GoRoute(path: '/history', pageBuilder: (c, s) => _fade(c, s, const HistoryScreen())),
+          GoRoute(path: '/profile', pageBuilder: (c, s) => _fade(c, s, const ProfileScreen())),
+          GoRoute(path: '/settings', pageBuilder: (c, s) => _fade(c, s, const SettingsScreen())),
         ],
       ),
     ],

@@ -43,6 +43,7 @@ class Wordmark extends StatelessWidget {
   }
 }
 
+/// Card surface. Built on Material so hover and ink effects of children are visible.
 class Panel extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -61,17 +62,17 @@ class Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = context.pal;
-    return Container(
+    final r = BorderRadius.circular(kRadius);
+    final card = SizedBox(
       width: double.infinity,
-      padding: padding,
-      decoration: BoxDecoration(
+      child: Material(
         color: color ?? p.surface,
-        borderRadius: BorderRadius.circular(kRadius),
-        border: Border.all(color: borderColor ?? p.line),
-        boxShadow: raised ? p.lift : null,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(borderRadius: r, side: BorderSide(color: borderColor ?? p.line)),
+        child: Padding(padding: padding, child: child),
       ),
-      child: child,
     );
+    return raised ? DecoratedBox(decoration: BoxDecoration(borderRadius: r, boxShadow: p.lift), child: card) : card;
   }
 }
 

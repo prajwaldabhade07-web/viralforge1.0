@@ -5,6 +5,15 @@ const kRadius = 14.0;
 const kPink = Color(0xFFFF5DA2);
 const kMint = Color(0xFF1FCFA0);
 
+/// Accent choices for Settings. The first one is the default.
+const kAccents = <(String, Color)>[
+  ('Ultramarine', Color(0xFF3A36E8)),
+  ('Violet', Color(0xFF7A3FE4)),
+  ('Teal', Color(0xFF0A7C8C)),
+  ('Rose', Color(0xFFC2185B)),
+  ('Emerald', Color(0xFF0B7A55)),
+];
+
 /// Motion switch. Turned off in tests (they build the theme with webFonts: false).
 class Fx {
   static bool enabled = true;
@@ -117,11 +126,51 @@ class Palette extends ThemeExtension<Palette> {
     shadow: Color(0x59000000),
   );
 
+  /// Light or dark set, re-tinted with the chosen accent.
+  static Palette forTheme(Brightness b, Color accent) {
+    final dark = b == Brightness.dark;
+    final base = dark ? Palette.dark : Palette.light;
+    if (accent == kAccents.first.$2) return base;
+    return base.copyWith(
+      ultra: dark ? Color.lerp(accent, base.onHero, 0.45) : accent,
+      ultraSoft: Color.lerp(base.surface, accent, dark ? 0.3 : 0.12),
+    );
+  }
+
+  bool get isDark => bg.computeLuminance() < 0.2;
+
+  /// Deeper end of the accent gradient (filled KPI card).
+  Color get ultraDeep => Color.lerp(ultra, hero, isDark ? 0.12 : 0.5)!;
+
   /// The one soft shadow level.
   List<BoxShadow> get lift => [BoxShadow(color: shadow, blurRadius: 24, offset: const Offset(0, 8))];
 
   @override
-  Palette copyWith() => this;
+  Palette copyWith({Color? ultra, Color? ultraSoft}) => Palette(
+        bg: bg,
+        surface: surface,
+        surfaceAlt: surfaceAlt,
+        text: text,
+        mute: mute,
+        line: line,
+        track: track,
+        ultra: ultra ?? this.ultra,
+        onUltra: onUltra,
+        ultraSoft: ultraSoft ?? this.ultraSoft,
+        sodium: sodium,
+        onSodium: onSodium,
+        good: good,
+        goodSoft: goodSoft,
+        warn: warn,
+        warnSoft: warnSoft,
+        bad: bad,
+        badSoft: badSoft,
+        hero: hero,
+        onHero: onHero,
+        heroMute: heroMute,
+        heroTrack: heroTrack,
+        shadow: shadow,
+      );
 
   @override
   Palette lerp(ThemeExtension<Palette>? other, double t) => (t < 0.5 || other is! Palette) ? this : other;
@@ -152,10 +201,10 @@ extension PaletteContext on BuildContext {
   TypeScale get ty => TypeScale(pal);
 }
 
-ThemeData buildTheme({bool webFonts = true, Brightness brightness = Brightness.light}) {
+ThemeData buildTheme({bool webFonts = true, Brightness brightness = Brightness.light, Color? accent}) {
   _webFonts = webFonts;
   Fx.enabled = webFonts;
-  final p = brightness == Brightness.dark ? Palette.dark : Palette.light;
+  final p = Palette.forTheme(brightness, accent ?? kAccents.first.$2);
   final scheme = ColorScheme(
     brightness: brightness,
     primary: p.ultra,

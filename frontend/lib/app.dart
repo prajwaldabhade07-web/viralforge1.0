@@ -11,11 +11,12 @@ class ViralForgeApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final accent = kAccents[ref.watch(accentProvider)].$2;
     return MaterialApp.router(
       title: 'ViralForge',
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(webFonts: webFonts),
-      darkTheme: buildTheme(webFonts: webFonts, brightness: Brightness.dark),
+      theme: buildTheme(webFonts: webFonts, accent: accent),
+      darkTheme: buildTheme(webFonts: webFonts, brightness: Brightness.dark, accent: accent),
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
     );
