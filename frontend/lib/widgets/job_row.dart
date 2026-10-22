@@ -6,7 +6,7 @@ import '../util/format.dart';
 import 'common.dart';
 import 'frame_strip.dart';
 
-/// One analysis in a list (project page and history). Tappable.
+/// One analysis in a list (project page and history). Tappable. Running analyses show a progress bar.
 class JobRow extends StatelessWidget {
   final Job job;
   final bool showProject;
@@ -30,7 +30,13 @@ class JobRow extends StatelessWidget {
           final scoreBlock = SizedBox(
             width: 150,
             child: score == null
-                ? Align(alignment: Alignment.centerLeft, child: StatusPill(job.status, blocked: job.isBlocked))
+                ? Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                    StatusPill(job.status, blocked: job.isBlocked),
+                    if (job.isActive) ...[
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(value: job.progress / 100, minHeight: 4, borderRadius: BorderRadius.circular(2)),
+                    ],
+                  ])
                 : Row(children: [
                     Text('$score', style: ty.title.copyWith(fontSize: 26, height: 1)),
                     const SizedBox(width: 10),

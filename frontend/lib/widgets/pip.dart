@@ -51,14 +51,14 @@ class PipState {
   double jump = 0;
 }
 
+/// Pip the panda. Black ears and eye patches, a sodium-yellow scarf, and a prop for every stage.
 class PipPainter extends CustomPainter {
   final PipMood mood;
   final Palette p;
   final PipState? state;
   final bool stage;
 
-  PipPainter({required this.mood, required this.p, this.state, this.stage = false, Listenable? repaint})
-      : super(repaint: repaint);
+  PipPainter({required this.mood, required this.p, this.state, this.stage = false, super.repaint});
 
   static const _white = Color(0xFFFFFFFF);
   static const _bandage = Color(0xFFF2D3A4);
@@ -89,8 +89,7 @@ class PipPainter extends CustomPainter {
     if (stage) {
       final floorY = size.height * 0.80;
       final w = s * 0.9 * (1 - math.min(lift / (s * 0.6), 0.5));
-      canvas.drawOval(Rect.fromCenter(center: Offset(cx, floorY + 4), width: w, height: 8),
-          _fill(p.text.withValues(alpha: 0.12)));
+      canvas.drawOval(Rect.fromCenter(center: Offset(cx, floorY + 4), width: w, height: 8), _fill(p.text.withValues(alpha: 0.12)));
     }
     final bob = math.sin(t * 2.4) * s * 0.02;
     canvas.save();
@@ -123,10 +122,8 @@ class PipPainter extends CustomPainter {
     final visible = (t * 2.2).floor() % (n + 2);
     for (var i = 0; i < n && i < visible; i++) {
       final x = x0 + i * (cw + gap);
-      final back = RRect.fromRectAndRadius(
-          Rect.fromLTWH(x + cw * 0.1, floorY - cw * 1.25, cw * 0.8, cw * 0.7), Radius.circular(cw * 0.15));
-      final seat = RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, floorY - cw * 0.55, cw, cw * 0.3), Radius.circular(cw * 0.1));
+      final back = RRect.fromRectAndRadius(Rect.fromLTWH(x + cw * 0.1, floorY - cw * 1.25, cw * 0.8, cw * 0.7), Radius.circular(cw * 0.15));
+      final seat = RRect.fromRectAndRadius(Rect.fromLTWH(x, floorY - cw * 0.55, cw, cw * 0.3), Radius.circular(cw * 0.1));
       canvas.drawRRect(back, _fill(p.ultra));
       canvas.drawRRect(seat, _fill(p.ultra));
     }
@@ -134,50 +131,56 @@ class PipPainter extends CustomPainter {
 
   void _drawPip(Canvas canvas, double s, double t, Offset look) {
     final ink = p.onSodium;
-    final bw = s * 0.8;
-    final bh = s * 0.96;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: bw, height: bh), Radius.circular(s * 0.14)),
-      _fill(p.sodium),
-    );
-    final holePaint = _fill(ink.withValues(alpha: 0.28));
-    for (var i = 0; i < 4; i++) {
-      final y = -bh / 2 + bh * (0.14 + 0.24 * i);
-      canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(-bw / 2 + s * 0.05, y, s * 0.07, s * 0.11), Radius.circular(s * 0.02)), holePaint);
-      canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(bw / 2 - s * 0.12, y, s * 0.07, s * 0.11), Radius.circular(s * 0.02)), holePaint);
+    final fur = p.onHero;
+    final edge = _line(ink.withValues(alpha: 0.25), s * 0.015);
+
+    for (final sx in const [-1.0, 1.0]) {
+      canvas.drawOval(Rect.fromCenter(center: Offset(sx * s * 0.17, s * 0.56), width: s * 0.2, height: s * 0.12), _fill(ink));
     }
+    final body = Rect.fromCenter(center: Offset(0, s * 0.34), width: s * 0.64, height: s * 0.5);
+    canvas.drawOval(body, _fill(fur));
+    canvas.drawOval(body, edge);
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(0, s * 0.13), width: s * 0.5, height: s * 0.09), Radius.circular(s * 0.045)),
+        _fill(p.sodium));
+    for (final sx in const [-1.0, 1.0]) {
+      canvas.drawOval(Rect.fromCenter(center: Offset(sx * s * 0.34, s * 0.3), width: s * 0.16, height: s * 0.3), _fill(ink));
+      canvas.drawCircle(Offset(sx * s * 0.3, -s * 0.4), s * 0.13, _fill(ink));
+    }
+    final head = Rect.fromCircle(center: Offset(0, -s * 0.1), radius: s * 0.38);
+    canvas.drawOval(head, _fill(fur));
+    canvas.drawOval(head, edge);
 
     final blink = (t % 4.2) < 0.13;
     for (final sx in const [-1.0, 1.0]) {
-      final e = Offset(sx * s * 0.17, -s * 0.1);
+      final e = Offset(sx * s * 0.15, -s * 0.12);
+      canvas.save();
+      canvas.translate(e.dx, e.dy);
+      canvas.rotate(sx * 0.35);
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: s * 0.14, height: s * 0.19), _fill(ink));
+      canvas.restore();
       if (blink) {
-        canvas.drawLine(e + Offset(-s * 0.07, 0), e + Offset(s * 0.07, 0), _line(ink, s * 0.03));
+        canvas.drawLine(e + Offset(-s * 0.04, 0), e + Offset(s * 0.04, 0), _line(fur, s * 0.025));
       } else {
-        canvas.drawCircle(e, s * 0.1, _fill(_white));
-        canvas.drawCircle(e + Offset(look.dx * s * 0.035, look.dy * s * 0.03), s * 0.05, _fill(ink));
+        canvas.drawCircle(e + Offset(look.dx * s * 0.02, look.dy * s * 0.02), s * 0.04, _fill(fur));
+        canvas.drawCircle(e + Offset(look.dx * s * 0.03, look.dy * s * 0.03), s * 0.018, _fill(ink));
       }
-      if (mood == PipMood.failed) {
-        canvas.drawLine(Offset(sx * s * 0.27, -s * 0.2), Offset(sx * s * 0.1, -s * 0.27), _line(ink, s * 0.03));
-      } else {
-        canvas.drawCircle(Offset(sx * s * 0.29, s * 0.08), s * 0.05, _fill(_cheek.withValues(alpha: 0.5)));
-      }
+      if (mood != PipMood.failed) canvas.drawCircle(Offset(sx * s * 0.27, s * 0.02), s * 0.05, _fill(_cheek.withValues(alpha: 0.5)));
     }
+    canvas.drawOval(Rect.fromCenter(center: Offset(0, -s * 0.02), width: s * 0.1, height: s * 0.07), _fill(ink));
 
-    final m = Offset(0, s * 0.16);
+    final m = Offset(0, s * 0.07);
+    final mouth = _line(ink, s * 0.03);
     if (mood == PipMood.safety) {
-      canvas.drawLine(m + Offset(-s * 0.08, 0), m + Offset(s * 0.08, 0), _line(ink, s * 0.035));
+      canvas.drawLine(m + Offset(-s * 0.06, 0), m + Offset(s * 0.06, 0), mouth);
     } else if (mood == PipMood.analysing) {
-      canvas.drawCircle(m, s * 0.04, _line(ink, s * 0.03));
+      canvas.drawCircle(m, s * 0.03, mouth);
     } else if (mood == PipMood.failed) {
-      canvas.drawArc(Rect.fromCenter(center: m + Offset(0, s * 0.05), width: s * 0.22, height: s * 0.12), math.pi,
-          math.pi, false, _line(ink, s * 0.035));
+      canvas.drawArc(Rect.fromCenter(center: m + Offset(0, s * 0.04), width: s * 0.16, height: s * 0.08), math.pi, math.pi, false, mouth);
     } else if (mood == PipMood.done) {
-      canvas.drawArc(Rect.fromCenter(center: m, width: s * 0.3, height: s * 0.2), 0, math.pi, true, _fill(ink));
+      canvas.drawArc(Rect.fromCenter(center: m, width: s * 0.2, height: s * 0.14), 0, math.pi, true, _fill(ink));
     } else {
-      canvas.drawArc(Rect.fromCenter(center: m, width: s * 0.24, height: s * 0.14), 0.15, math.pi - 0.3, false,
-          _line(ink, s * 0.035));
+      canvas.drawArc(Rect.fromCenter(center: m, width: s * 0.16, height: s * 0.08), 0.15, math.pi - 0.3, false, mouth);
     }
 
     switch (mood) {
@@ -199,10 +202,10 @@ class PipPainter extends CustomPainter {
 
   void _reel(Canvas canvas, double s, double t) {
     final ink = p.onSodium;
-    final c = Offset(0, -s * 0.74);
+    final c = Offset(0, -s * 0.92);
     final r = s * 0.2;
     for (final sx in const [-1.0, 1.0]) {
-      canvas.drawLine(Offset(sx * s * 0.4, -s * 0.05), Offset(sx * r * 0.9, -s * 0.62), _line(ink, s * 0.05));
+      canvas.drawLine(Offset(sx * s * 0.3, s * 0.2), Offset(sx * r * 0.9, -s * 0.74), _line(ink, s * 0.07));
     }
     canvas.drawCircle(c, r, _fill(p.ultra));
     canvas.drawCircle(c, r, _line(ink, s * 0.03));
@@ -232,7 +235,7 @@ class PipPainter extends CustomPainter {
       canvas.drawPath(path, _line(p.good, s * 0.04));
     }
     final y = -s * 0.12 + press * s * 0.26;
-    canvas.drawLine(Offset(s * 0.36, s * 0.05), Offset(s * 0.7, y - s * 0.16), _line(ink, s * 0.05));
+    canvas.drawLine(Offset(s * 0.3, s * 0.22), Offset(s * 0.7, y - s * 0.16), _line(ink, s * 0.07));
     canvas.drawRRect(
         RRect.fromRectAndRadius(Rect.fromCenter(center: Offset(s * 0.82, y - s * 0.14), width: s * 0.1, height: s * 0.2), Radius.circular(s * 0.04)),
         _fill(p.ultra));
@@ -245,7 +248,7 @@ class PipPainter extends CustomPainter {
     final ink = p.onSodium;
     final lens = Offset(s * 0.7 + math.sin(t * 2) * s * 0.12, s * 0.02);
     final r = s * 0.2;
-    canvas.drawLine(Offset(s * 0.36, s * 0.12), lens + Offset(-r * 0.7, r * 0.7), _line(ink, s * 0.05));
+    canvas.drawLine(Offset(s * 0.3, s * 0.24), lens + Offset(-r * 0.7, r * 0.7), _line(ink, s * 0.07));
     canvas.drawLine(lens + Offset(r * 0.7, r * 0.7), lens + Offset(r * 1.4, r * 1.4), _line(ink, s * 0.06));
     canvas.drawCircle(lens, r, _fill(_white.withValues(alpha: 0.65)));
     canvas.drawCircle(lens, r, _line(ink, s * 0.04));
@@ -255,8 +258,8 @@ class PipPainter extends CustomPainter {
     final ink = p.onSodium;
     final w = math.sin(t * 9) * s * 0.05;
     for (final sx in const [-1.0, 1.0]) {
-      canvas.drawLine(Offset(sx * s * 0.4, -s * 0.02), Offset(sx * s * 0.62, -s * 0.5 + w), _line(ink, s * 0.05));
-      canvas.drawCircle(Offset(sx * s * 0.62, -s * 0.54 + w), s * 0.05, _fill(ink));
+      canvas.drawLine(Offset(sx * s * 0.3, s * 0.2), Offset(sx * s * 0.62, -s * 0.5 + w), _line(ink, s * 0.07));
+      canvas.drawCircle(Offset(sx * s * 0.62, -s * 0.54 + w), s * 0.06, _fill(ink));
     }
     final sp = _fill(p.ultra);
     for (var i = 0; i < 3; i++) {
@@ -267,10 +270,9 @@ class PipPainter extends CustomPainter {
 
   void _bandageMark(Canvas canvas, double s) {
     canvas.save();
-    canvas.translate(s * 0.14, -s * 0.34);
+    canvas.translate(s * 0.18, -s * 0.38);
     canvas.rotate(-0.5);
-    final r = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: Offset.zero, width: s * 0.36, height: s * 0.13), Radius.circular(s * 0.04));
+    final r = RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: s * 0.36, height: s * 0.13), Radius.circular(s * 0.04));
     canvas.drawRRect(r, _fill(_bandage));
     canvas.drawRRect(r, _line(p.onSodium.withValues(alpha: 0.35), s * 0.012));
     final dot = _fill(p.onSodium.withValues(alpha: 0.35));
@@ -377,7 +379,7 @@ class _PipBoothState extends State<PipBooth> with SingleTickerProviderStateMixin
   Widget build(BuildContext context) {
     final p = context.pal;
     return Semantics(
-      label: 'Pip. ${moodCaption(widget.mood)}',
+      label: 'Pip the panda. ${moodCaption(widget.mood)}',
       child: LayoutBuilder(builder: (context, c) {
         final size = Size(c.maxWidth, widget.height);
         return MouseRegion(

@@ -8,8 +8,7 @@ import '../util/text.dart';
 import 'common.dart';
 import 'frame_strip.dart';
 import 'fx.dart';
-
-const _pad = 12.0;
+import 'pip.dart';
 
 /// Titled card used by every dashboard block. [expand] fills a stretched parent.
 class SectionCard extends StatelessWidget {
@@ -145,8 +144,6 @@ class PillBars extends StatelessWidget {
   final double? height;
   const PillBars({super.key, required this.points, this.slots = 7, this.height});
 
-  static const _days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
   Widget _bar(BuildContext context, ScorePoint? pt, int top) {
     final p = context.pal;
     final solid = pt != null && pt.score >= 75;
@@ -172,7 +169,7 @@ class PillBars extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 6),
-      Text(pt?.at == null ? '' : _days[pt!.at!.weekday - 1], style: context.ty.caption.copyWith(fontSize: 11)),
+      Text(shortDate(pt?.at), maxLines: 1, overflow: TextOverflow.clip, style: context.ty.caption.copyWith(fontSize: 11)),
     ]);
   }
 
@@ -213,258 +210,56 @@ class _Hatch extends CustomPainter {
   bool shouldRepaint(_Hatch old) => old.line != line || old.bg != bg;
 }
 
-/// Half-donut gauge with the score and its verdict word. The sodium dot is the playhead.
-class Gauge extends StatelessWidget {
-  final int? score;
-  final double? height;
-  const Gauge({super.key, required this.score, this.height});
+/// The four skill scores of the latest report on film strips, with the strongest and weakest called out.
+class SkillBars extends StatelessWidget {
+  final Map<String, int> scores;
+  const SkillBars({super.key, required this.scores});
+
+  static const _labels = {'hook': 'Hook', 'engagement': 'Engagement', 'retention': 'Retention', 'shareability': 'Shareability'};
 
   @override
   Widget build(BuildContext context) {
     final p = context.pal;
     final ty = context.ty;
-    final sc = score;
-    final t = (sc ?? 0) / 100;
-    final big = ty.title.copyWith(fontSize: 40, height: 1);
-    return Semantics(
-      label: sc == null ? 'No score yet' : 'Latest score $sc out of 100, ${verdictFor(sc)}',
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
-        child: Stack(alignment: Alignment.bottomCenter, children: [
-          Positioned.fill(
-            child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: Fx.enabled ? 0 : t, end: t),
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeOut,
-              builder: (context, v, _) => CustomPaint(painter: _GaugePainter(v, p.track, p.ultra, p.sodium, sc != null)),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              sc == null ? Text('-', style: big) : CountUp(value: sc, style: big),
-              Text(sc == null ? 'No score yet' : verdictFor(sc), style: ty.bodyStrong.copyWith(fontSize: 14)),
-            ]),
-          ),
+    if (scores.isEmpty) {
+      return Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const PipMark(size: 64),
+          Text('Your skills show up after your first report.', textAlign: TextAlign.center, style: ty.caption),
         ]),
-      ),
-    );
-  }
-}
-
-class _GaugePainter extends CustomPainter {
-  final double t;
-  final Color track;
-  final Color fill;
-  final Color dot;
-  final bool has;
-  const _GaugePainter(this.t, this.track, this.fill, this.dot, this.has);
-
-  @override
-  void paint(Canvas canvas, Size s) {
-    const sw = 16.0;
-    final r = math.min(s.width / 2, s.height) - sw / 2 - 2;
-    if (r <= 0) return;
-    final c = Offset(s.width / 2, s.height - sw / 2 - 2);
-    final rect = Rect.fromCircle(center: c, radius: r);
-    Paint stroke(Color color) => Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = sw
-      ..strokeCap = StrokeCap.round;
-    canvas.drawArc(rect, math.pi, math.pi, false, stroke(track));
-    if (has && t > 0) {
-      canvas.drawArc(rect, math.pi, math.pi * t, false, stroke(fill));
-      final a = math.pi + math.pi * t;
-      canvas.drawCircle(c + Offset(math.cos(a), math.sin(a)) * r, 4, Paint()..color = dot);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_GaugePainter old) => old.t != t || old.track != track || old.fill != fill || old.has != has;
-}
-
-/// Score line with gradient fill, dashed previous period, and a hover/tap guide with tooltip.
-class TrendLine extends StatefulWidget {
-  final List<ScorePoint> points;
-  final List<ScorePoint> prev;
-  final double? height;
-  const TrendLine({super.key, required this.points, this.prev = const [], this.height});
-
-  @override
-  State<TrendLine> createState() => _TrendLineState();
-}
-
-class _TrendLineState extends State<TrendLine> {
-  int? _i;
-
-  void _at(double dx) {
-    final n = widget.points.length;
-    final w = (context.size?.width ?? 0) - 2 * _pad;
-    if (n < 2 || w <= 0) return;
-    setState(() => _i = ((dx - _pad) / w * (n - 1)).round().clamp(0, n - 1).toInt());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final p = context.pal;
-    final ty = context.ty;
-    final pts = widget.points;
-    if (pts.length < 2) {
-      return SizedBox(
-        height: widget.height,
-        child: Center(
-          child: pts.isEmpty
-              ? Text('Your trend shows up after your first report.', textAlign: TextAlign.center, style: ty.body.copyWith(color: p.mute))
-              : Column(mainAxisSize: MainAxisSize.min, children: [
-                  Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('${pts.first.score}', style: ty.score.copyWith(fontSize: 56)),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: p.sodium, border: Border.all(color: p.ultra, width: 3)),
-                    ),
-                  ]),
-                  Text('One more analysis unlocks your trend.', textAlign: TextAlign.center, style: ty.caption),
-                ]),
-        ),
       );
     }
-    return Semantics(
-      label: 'Score trend over your last ${pts.length} analyses',
-      child: MouseRegion(
-        onHover: (e) => _at(e.localPosition.dx),
-        onExit: (_) => setState(() => _i = null),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (d) => _at(d.localPosition.dx),
-          onHorizontalDragUpdate: (d) => _at(d.localPosition.dx),
-          child: SizedBox(
-            width: double.infinity,
-            height: widget.height,
-            child: CustomPaint(painter: _TrendPainter(pts, widget.prev, _i, p)),
-          ),
-        ),
-      ),
-    );
+    final hi = scores.values.reduce(math.max);
+    final lo = scores.values.reduce(math.min);
+    return Column(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+      for (final e in scores.entries)
+        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(_labels[e.key] ?? e.key, maxLines: 1, overflow: TextOverflow.ellipsis, style: ty.bodyStrong)),
+            if (hi != lo && e.value == hi)
+              _Tag('Strongest', p.good, p.goodSoft)
+            else if (hi != lo && e.value == lo)
+              _Tag('Needs work', p.warn, p.warnSoft),
+            const SizedBox(width: 10),
+            Text('${e.value}', style: ty.heading),
+          ]),
+          const SizedBox(height: 6),
+          FrameStrip(value: e.value.toDouble(), cells: 20, height: 10, semanticLabel: '${_labels[e.key] ?? e.key} ${e.value} out of 100'),
+        ]),
+    ]);
   }
 }
 
-void _dash(Canvas canvas, Path path, Paint paint) {
-  for (final m in path.computeMetrics()) {
-    for (var d = 0.0; d < m.length; d += 9) {
-      canvas.drawPath(m.extractPath(d, math.min(d + 5, m.length)), paint);
-    }
-  }
-}
-
-class _TrendPainter extends CustomPainter {
-  final List<ScorePoint> pts;
-  final List<ScorePoint> prev;
-  final int? hi;
-  final Palette p;
-  const _TrendPainter(this.pts, this.prev, this.hi, this.p);
+class _Tag extends StatelessWidget {
+  final String text;
+  final Color fg;
+  final Color bg;
+  const _Tag(this.text, this.fg, this.bg);
 
   @override
-  void paint(Canvas canvas, Size s) {
-    final n = pts.length;
-    final w = s.width - 2 * _pad;
-    final h = s.height - 40;
-    if (n < 2 || w <= 0 || h <= 0) return;
-    Offset at(int i, int v) => Offset(_pad + w * i / (n - 1), 28 + h * (1 - v.clamp(0, 100) / 100));
-
-    final grid = Paint()
-      ..color = p.line
-      ..strokeWidth = 1;
-    for (final f in const [0.0, 0.5, 1.0]) {
-      canvas.drawLine(Offset(_pad, 28 + h * f), Offset(_pad + w, 28 + h * f), grid);
-    }
-
-    final m = math.min(prev.length, n);
-    if (m >= 2) {
-      final d = Path();
-      for (var j = 0; j < m; j++) {
-        final o = at(n - m + j, prev[prev.length - m + j].score);
-        if (j == 0) {
-          d.moveTo(o.dx, o.dy);
-        } else {
-          d.lineTo(o.dx, o.dy);
-        }
-      }
-      _dash(
-          canvas,
-          d,
-          Paint()
-            ..color = p.mute
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2);
-    }
-
-    final first = at(0, pts[0].score);
-    final line = Path()..moveTo(first.dx, first.dy);
-    for (var i = 1; i < n; i++) {
-      final o = at(i, pts[i].score);
-      line.lineTo(o.dx, o.dy);
-    }
-    final area = Path.from(line)
-      ..lineTo(_pad + w, 28 + h)
-      ..lineTo(_pad, 28 + h)
-      ..close();
-    canvas.drawPath(
-        area,
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [p.ultra.withValues(alpha: 0.3), p.ultra.withValues(alpha: 0)],
-          ).createShader(Rect.fromLTWH(0, 28, s.width, h)));
-    canvas.drawPath(
-        line,
-        Paint()
-          ..color = p.ultra
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round);
-    for (var i = 0; i < n - 1; i++) {
-      canvas.drawCircle(at(i, pts[i].score), 3, Paint()..color = p.ultra);
-    }
-    final end = at(n - 1, pts[n - 1].score);
-    canvas.drawCircle(end, 6, Paint()..color = p.ultra);
-    canvas.drawCircle(end, 3.5, Paint()..color = p.sodium);
-
-    final k = hi;
-    if (k == null || k >= n) return;
-    final o = at(k, pts[k].score);
-    canvas.drawLine(
-        Offset(o.dx, 22),
-        Offset(o.dx, 28 + h),
-        Paint()
-          ..color = p.mute
-          ..strokeWidth = 1.5);
-    canvas.drawCircle(o, 6, Paint()..color = p.surface);
-    canvas.drawCircle(
-        o,
-        6,
-        Paint()
-          ..color = p.ultra
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3);
-    final d = shortDate(pts[k].at);
-    final tp = TextPainter(
-      text: TextSpan(text: d.isEmpty ? '${pts[k].score}' : '${pts[k].score}  $d', style: TextStyle(color: p.bg, fontSize: 12, fontWeight: FontWeight.w600)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final bw = tp.width + 16;
-    final bh = tp.height + 10;
-    final bx = (o.dx - bw / 2).clamp(2.0, math.max(2.0, s.width - bw - 2)).toDouble();
-    final by = math.max(2.0, o.dy - bh - 10);
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bx, by, bw, bh), const Radius.circular(8)), Paint()..color = p.text);
-    tp.paint(canvas, Offset(bx + 8, by + 5));
-  }
-
-  @override
-  bool shouldRepaint(_TrendPainter old) => old.hi != hi || old.pts != pts || old.prev != prev || old.p != p;
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+        child: Text(text, style: TextStyle(color: fg, fontSize: 11.5, fontWeight: FontWeight.w700)),
+      );
 }

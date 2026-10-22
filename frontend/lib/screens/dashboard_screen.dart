@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 import '../util/text.dart';
@@ -24,6 +25,12 @@ const _tips = [
   'Relatable beats polished. People share what feels like them.',
 ];
 
+const _steps = [
+  ('Drop your video', 'Pick a short clip, up to 90 seconds.'),
+  ('Pip watches it', 'About 1 to 3 minutes. You can leave the page.'),
+  ('Read your report', 'Get scores and a list of fixes to try next.'),
+];
+
 Widget _in(int ms, Widget w) => Reveal(delayMs: ms, child: w);
 
 /// Equal-height columns on wide screens, a plain stack on narrow ones.
@@ -43,22 +50,41 @@ Widget _cols(bool wide, List<(int, Widget)> items) => wide
         ],
       ]);
 
-class DashboardScreen extends ConsumerStatefulWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
-  @override
-  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
-}
-
-class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  final _studio = GlobalKey();
-
-  void _toStudio() {
-    final c = _studio.currentContext;
-    if (c != null) Scrollable.ensureVisible(c, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+  Widget _howItWorks(BuildContext context, bool wide) {
+    final p = context.pal;
+    final ty = context.ty;
+    final items = [
+      for (var i = 0; i < _steps.length; i++)
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          CircleAvatar(radius: 16, backgroundColor: p.ultraSoft, child: Text('${i + 1}', style: TextStyle(color: p.ultra, fontWeight: FontWeight.w700))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(_steps[i].$1, style: ty.bodyStrong),
+              Text(_steps[i].$2, style: ty.caption.copyWith(fontSize: 14)),
+            ]),
+          ),
+        ]),
+    ];
+    return SectionCard(
+      title: 'How it works',
+      subtitle: 'Three steps. No experience needed.',
+      trailing: TextButton(onPressed: () => context.go('/help'), child: const Text('More help')),
+      child: wide
+          ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(width: 16),
+                Expanded(child: items[i]),
+              ],
+            ])
+          : Column(children: [for (var i = 0; i < items.length; i++) ...[if (i > 0) const SizedBox(height: 12), items[i]]]),
+    );
   }
 
-  Widget _kpis(bool wide, DashStats s, bool loading) {
+  Widget _kpis(BuildContext context, bool wide, DashStats s, bool loading) {
     final go = context.go;
     final last = s.last;
     final ch = s.change;
@@ -112,7 +138,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     });
   }
 
-  Widget _fixCard(DashStats s, bool loading) {
+  Widget _running(BuildContext context, Job j) {
+    final ty = context.ty;
+    final mood = moodForStage(j.status, j.stage);
+    return Panel(
+      child: Row(children: [
+        PipMark(mood: mood, size: 56),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Analysis in progress', style: ty.heading),
+            Text('${j.projectName ?? j.niche}: ${moodCaption(mood)}', maxLines: 2, overflow: TextOverflow.ellipsis, style: ty.caption),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(value: j.progress / 100, minHeight: 6, borderRadius: BorderRadius.circular(3)),
+          ]),
+        ),
+        const SizedBox(width: 14),
+        FilledButton(onPressed: () => context.go('/analyses/${j.id}'), child: const Text('See progress')),
+      ]),
+    );
+  }
+
+  Widget _fixCard(BuildContext context, DashStats s, bool loading) {
     final p = context.pal;
     final ty = context.ty;
     final fix = s.fix;
@@ -136,7 +183,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _tipCard(bool wide) => SectionCard(
+  Widget _tipCard(BuildContext context, bool wide) => SectionCard(
         title: "Pip's tip",
         expand: wide,
         child: Row(children: [
@@ -147,25 +194,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(dashboardStatsProvider);
     final s = async.valueOrNull ?? const DashStats();
     final loading = async.isLoading && async.valueOrNull == null;
     final n = s.points.length;
+    final running = s.latest.where((j) => j.isActive).firstOrNull;
     return PageFrame(
       child: LayoutBuilder(builder: (context, c) {
         final wide = c.maxWidth > 760;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          LivePoller(active: Fx.enabled && s.latest.any((j) => j.isActive), onTick: () => ref.invalidate(dashboardStatsProvider)),
+          LivePoller(active: Fx.enabled && running != null, onTick: () => ref.invalidate(dashboardStatsProvider)),
           PageHeader(
             title: 'Dashboard',
             subtitle: 'Everything Pip knows about your videos, in one place.',
             actions: [
-              FilledButton.icon(onPressed: _toStudio, icon: const Icon(Icons.add, size: 20), label: const Text('New analysis')),
+              FilledButton.icon(onPressed: () => context.go('/new'), icon: const Icon(Icons.add, size: 20), label: const Text('New analysis')),
               OutlinedButton(onPressed: () => context.go('/history'), child: const Text('View history')),
             ],
           ),
-          _kpis(wide, s, loading),
+          if (running != null) ...[_in(0, _running(context, running)), const SizedBox(height: _g)],
+          if (!loading && s.total == 0) ...[_in(0, _howItWorks(context, wide)), const SizedBox(height: _g)],
+          _kpis(context, wide, s, loading),
           const SizedBox(height: _g),
           _in(
             240,
@@ -181,7 +231,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   child: loading ? const Skeleton(height: 140) : PillBars(points: s.points, height: wide ? null : 200),
                 ),
               ),
-              (2, Column(children: [_fixCard(s, loading), const SizedBox(height: _g), wide ? Expanded(child: _tipCard(true)) : _tipCard(false)])),
+              (2, Column(children: [_fixCard(context, s, loading), const SizedBox(height: _g), wide ? Expanded(child: _tipCard(context, true)) : _tipCard(context, false)])),
             ]),
           ),
           const SizedBox(height: _g),
@@ -191,22 +241,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               (
                 3,
                 SectionCard(
-                  title: 'Latest score',
-                  subtitle: 'How your last video landed',
+                  title: 'Your four skills',
+                  subtitle: 'From your latest report',
                   expand: wide,
-                  child: loading ? const Skeleton(height: 120) : Gauge(score: s.last?.score, height: wide ? null : 170),
+                  child: loading ? const Skeleton(height: 140) : SkillBars(scores: s.skills),
                 ),
               ),
-              (
-                4,
-                SectionCard(
-                  title: 'Score trend',
-                  subtitle: n < 2 ? 'Two analyses draw your first line.' : (s.prev.isEmpty ? 'Hover or tap to read each score.' : 'Dashed line is your previous period.'),
-                  expand: wide,
-                  child: loading ? const Skeleton(height: 120) : TrendLine(points: s.points, prev: s.prev, height: wide ? null : 200),
-                ),
-              ),
-              (4, QuickStudio(key: _studio)),
+              (2, const QuickStudio()),
             ]),
           ),
           if (!loading) ...[
@@ -216,9 +257,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               s.latest.isEmpty
                   ? EmptyState(
                       title: 'No reports yet',
-                      body: 'Drop a clip above and Pip will watch it for you.',
+                      body: 'Drop a clip and Pip will watch it for you.',
                       actionLabel: 'Drop a clip',
-                      onAction: _toStudio,
+                      onAction: () => context.go('/new'),
                     )
                   : RowList(children: [for (final j in s.latest) JobRow(job: j, showProject: true, onTap: () => context.go('/analyses/${j.id}'))]),
             ),

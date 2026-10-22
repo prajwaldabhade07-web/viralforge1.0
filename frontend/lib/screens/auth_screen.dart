@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -33,7 +34,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   bool _register = false;
   bool _busy = false;
   bool _obscure = true;
-  bool _lit = true;
+  bool _lit = false; // the room starts dark: pull the cord to see the sign-in card
   String? _error;
   String? _info;
 
@@ -215,17 +216,24 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     );
   }
 
-  Widget _pipCard(double t) => Stack(alignment: Alignment.topCenter, children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 92),
-          child: Opacity(opacity: 0.6 + 0.4 * t, child: GlassCard(padding: const EdgeInsets.fromLTRB(24, 50, 24, 14), child: _formBody())),
+  /// Hidden (and untouchable) until the lamp is on; fades in as the room lights up.
+  Widget _pipCard(double show) => IgnorePointer(
+        ignoring: !_lit,
+        child: Opacity(
+          opacity: show,
+          child: Stack(alignment: Alignment.topCenter, children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 92),
+              child: GlassCard(padding: const EdgeInsets.fromLTRB(24, 50, 24, 14), child: _formBody()),
+            ),
+            _pip(),
+          ]),
         ),
-        _pip(),
-      ]);
+      );
 
   Widget _lamp() => SizedBox(width: 180, child: Lamp(lit: _lit, onToggle: () => setState(() => _lit = !_lit)));
 
-  Widget _wide(double t) {
+  Widget _wide(double t, double show) {
     final p = context.pal;
     final ty = context.ty;
     return Row(children: [
@@ -234,14 +242,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(56, 40, 24, 32),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Wordmark(color: p.onHero, size: 24),
-            const SizedBox(height: 32),
-            Text('Know how your video will land before you post it.', style: ty.display.copyWith(fontSize: 46, color: p.onHero)),
-            const SizedBox(height: 16),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 440),
-              child: Text('Upload a short clip. Get five scores, specific fixes, and ten simulated viewer reactions.',
-                  style: ty.body.copyWith(color: p.heroMute, fontSize: 16)),
+            Opacity(
+              opacity: 0.15 + 0.85 * t,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Wordmark(color: p.onHero, size: 24),
+                const SizedBox(height: 32),
+                Text('Know how your video will land before you post it.', style: ty.display.copyWith(fontSize: 46, color: p.onHero)),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Text('Upload a short clip. Get five scores, specific fixes, and ten simulated viewer reactions.',
+                      style: ty.body.copyWith(color: p.heroMute, fontSize: 16)),
+                ),
+              ]),
             ),
             Expanded(child: Align(alignment: Alignment.bottomLeft, child: FittedBox(fit: BoxFit.scaleDown, child: _lamp()))),
           ]),
@@ -252,25 +265,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: _pipCard(t)),
+            child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: _pipCard(show)),
           ),
         ),
       ),
     ]);
   }
 
-  Widget _narrow(double t) {
+  Widget _narrow(double t, double show) {
     final p = context.pal;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Wordmark(color: p.onHero, size: 22),
-        const SizedBox(height: 14),
-        Text('Know how your video will land before you post it.', style: context.ty.display.copyWith(fontSize: 28, color: p.onHero)),
-        const SizedBox(height: 18),
-        _pipCard(t),
+        Opacity(
+          opacity: 0.15 + 0.85 * t,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wordmark(color: p.onHero, size: 22),
+            const SizedBox(height: 14),
+            Text('Know how your video will land before you post it.', style: context.ty.display.copyWith(fontSize: 28, color: p.onHero)),
+          ]),
+        ),
         const SizedBox(height: 12),
         Center(child: SizedBox(height: 190, child: FittedBox(child: _lamp()))),
+        const SizedBox(height: 12),
+        _pipCard(show),
       ]),
     );
   }
@@ -280,13 +298,27 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final wide = MediaQuery.of(context).size.width >= 900;
     return Scaffold(
       backgroundColor: Palette.dark.hero,
-      body: Listener(
-        onPointerHover: (e) => _track(e.position),
-        onPointerMove: (e) => _track(e.position),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(end: _lit ? 1.0 : 0.0),
-          duration: Duration(milliseconds: Fx.enabled ? 250 : 0),
-          builder: (context, t, _) => DarkScene(lit: t, child: SafeArea(child: wide ? _wide(t) : _narrow(t))),
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (!_lit && event is KeyDownEvent) {
+            setState(() => _lit = true);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Listener(
+          onPointerHover: (e) => _track(e.position),
+          onPointerMove: (e) => _track(e.position),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: _lit ? 1.0 : 0.0),
+            duration: Duration(milliseconds: Fx.enabled ? 700 : 0),
+            curve: Curves.easeOut,
+            builder: (context, t, _) {
+              final show = ((t - 0.35) / 0.65).clamp(0.0, 1.0).toDouble();
+              return DarkScene(lit: t, child: SafeArea(child: wide ? _wide(t, show) : _narrow(t, show)));
+            },
+          ),
         ),
       ),
     );

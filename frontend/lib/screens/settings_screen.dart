@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/providers.dart';
+import '../state/text_scale.dart';
 import '../theme.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
@@ -15,11 +16,28 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ty = context.ty;
     final accent = ref.watch(accentProvider);
+    final scale = ref.watch(textScaleProvider);
     final auth = ref.watch(authServiceProvider);
     return PageFrame(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const PageHeader(title: 'Settings', subtitle: 'Make the cutting room yours.'),
         Reveal(
+          child: SectionCard(
+            title: 'Text size',
+            subtitle: 'Make everything easier to read.',
+            child: SegmentedButton<double>(
+              segments: const [
+                ButtonSegment(value: 1.0, label: Text('Normal')),
+                ButtonSegment(value: 1.2, label: Text('Large')),
+              ],
+              selected: {scale},
+              onSelectionChanged: (s) => ref.read(textScaleProvider.notifier).set(s.first),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Reveal(
+          delayMs: 60,
           child: SectionCard(
             title: 'Accent colour',
             subtitle: 'Dark mode lives in the moon button at the top.',
@@ -31,7 +49,7 @@ class SettingsScreen extends ConsumerWidget {
         ),
         const SizedBox(height: 16),
         Reveal(
-          delayMs: 60,
+          delayMs: 120,
           child: SectionCard(
             title: 'Account',
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

@@ -28,7 +28,7 @@ InputDecoration darkField(BuildContext context, String label, {String? helper, W
 }
 
 /// Dark backdrop shared by sign-in, welcome, password reset and the floating app shell.
-/// [lit] 1 = lamp on (warm glow), 0 = lights out.
+/// [lit] 1 = lamp on (warm glow fills the room), 0 = lights out.
 class DarkScene extends StatelessWidget {
   final Widget child;
   final double lit;
@@ -50,7 +50,7 @@ class DarkScene extends StatelessWidget {
         ),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            gradient: RadialGradient(center: glow, radius: 0.8, colors: [p.sodium.withValues(alpha: 0.2 * lit), p.sodium.withValues(alpha: 0)]),
+            gradient: RadialGradient(center: glow, radius: 0.5 + 0.5 * lit, colors: [p.sodium.withValues(alpha: 0.3 * lit), p.sodium.withValues(alpha: 0)]),
           ),
           child: child,
         ),

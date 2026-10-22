@@ -47,6 +47,15 @@ final projectVideosProvider = FutureProvider.autoDispose.family<Paged<VideoItem>
 final projectAnalysesProvider =
     FutureProvider.autoDispose.family<Paged<Job>, String>((ref, id) => ref.watch(apiProvider).projectAnalyses(id));
 
+/// Analyses that are queued or running right now (newest first). The shell polls this so a running analysis is always one tap away.
+final activeJobsProvider = FutureProvider.autoDispose<List<Job>>((ref) async {
+  try {
+    return (await ref.watch(apiProvider).history(limit: 10)).items.where((j) => j.isActive).toList();
+  } catch (_) {
+    return const [];
+  }
+});
+
 // ───────────── Theme mode, accent and profile (persisted in the browser) ─────────────
 
 class ThemeModeController extends StateNotifier<ThemeMode> {
@@ -117,9 +126,9 @@ class DashStats {
   final double? average;
   final ScorePoint? best;
   final List<ScorePoint> points; // last 12 scores, oldest -> newest
-  final List<ScorePoint> prev; // the 12 before those, oldest -> newest
   final List<Job> latest;
   final NextFix? fix;
+  final Map<String, int> skills; // hook, engagement, retention, shareability of the latest report
   const DashStats({
     this.total = 0,
     this.completed = 0,
@@ -128,9 +137,9 @@ class DashStats {
     this.average,
     this.best,
     this.points = const [],
-    this.prev = const [],
     this.latest = const [],
     this.fix,
+    this.skills = const {},
   });
 
   ScorePoint? get last => points.isEmpty ? null : points.last;
@@ -154,12 +163,20 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async
         }).length;
 
     NextFix? fix;
+    var skills = const <String, int>{};
     if (scored.isNotEmpty) {
       try {
-        final recs = (await api.getAnalysis(scored.first.id)).report?.recommendations ?? const <Map<String, dynamic>>[];
+        final report = (await api.getAnalysis(scored.first.id)).report;
+        final recs = report?.recommendations ?? const <Map<String, dynamic>>[];
         if (recs.isNotEmpty) fix = NextFix('${recs.first['title']}', '${recs.first['detail']}', scored.first.id);
+        if (report != null) {
+          skills = {
+            for (final k in const ['hook', 'engagement', 'retention', 'shareability'])
+              if (report.scores[k] != null) k: report.scores[k]!,
+          };
+        }
       } catch (_) {
-        // The card simply shows its empty text.
+        // The cards simply show their empty text.
       }
     }
 
@@ -171,9 +188,9 @@ final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async
       average: all.isEmpty ? null : all.map((e) => e.score).reduce((a, b) => a + b) / all.length,
       best: all.isEmpty ? null : all.reduce((a, b) => b.score > a.score ? b : a),
       points: all.take(12).toList().reversed.toList(),
-      prev: all.skip(12).take(12).toList().reversed.toList(),
       latest: page.items.take(3).toList(),
       fix: fix,
+      skills: skills,
     );
   } catch (_) {
     return const DashStats();

@@ -34,23 +34,15 @@ void main() {
     expect(find.byTooltip('No analysis yet'), findsNWidgets(4));
   });
 
-  testWidgets('Gauge shows score and verdict, or an empty state', (tester) async {
-    await tester.pumpWidget(host(const Gauge(score: 82), h: 160));
-    expect(find.text('82'), findsOneWidget);
-    expect(find.text('Strong'), findsOneWidget);
-    await tester.pumpWidget(host(const Gauge(score: null), h: 160));
-    expect(find.text('No score yet'), findsOneWidget);
+  testWidgets('SkillBars marks the strongest and weakest skill', (tester) async {
+    await tester.pumpWidget(host(const SkillBars(scores: {'hook': 80, 'engagement': 70, 'retention': 60, 'shareability': 50}), h: 400));
+    expect(find.text('Hook'), findsOneWidget);
+    expect(find.text('Strongest'), findsOneWidget);
+    expect(find.text('Needs work'), findsOneWidget);
   });
 
-  testWidgets('TrendLine handles 0, 1 and several points', (tester) async {
-    await tester.pumpWidget(host(const TrendLine(points: []), h: 200));
-    expect(find.text('Your trend shows up after your first report.'), findsOneWidget);
-    await tester.pumpWidget(host(TrendLine(points: [pt(70)]), h: 200));
-    expect(find.text('70'), findsOneWidget);
-    expect(find.text('One more analysis unlocks your trend.'), findsOneWidget);
-    await tester.pumpWidget(host(TrendLine(points: [pt(50), pt(70), pt(90)], prev: [pt(40), pt(55)]), h: 200));
-    await tester.tapAt(tester.getCenter(find.byType(TrendLine)));
-    await tester.pump();
-    expect(tester.takeException(), isNull);
+  testWidgets('SkillBars shows a Pip empty state with no scores', (tester) async {
+    await tester.pumpWidget(host(const SkillBars(scores: {}), h: 300));
+    expect(find.text('Your skills show up after your first report.'), findsOneWidget);
   });
 }

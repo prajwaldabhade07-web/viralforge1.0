@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// Pip peeking over a card. Eyes follow [look] (-1..1), paws cover the eyes at [cover] (0..1);
+/// Pip the panda peeking over a card. Eyes follow [look] (-1..1), paws cover the eyes at [cover] (0..1);
 /// [peek] lowers the right paw so one eye can see (password shown).
 class LoginPip extends StatelessWidget {
   final Offset look;
@@ -28,7 +28,7 @@ class LoginPip extends StatelessWidget {
           builder: (context, pk, _) => TweenAnimationBuilder<Offset>(
             tween: Tween<Offset>(end: look),
             duration: Duration(milliseconds: Fx.enabled ? 120 : 0),
-            builder: (context, l, _) => SizedBox(width: size, height: size, child: CustomPaint(painter: _PipPainter(l, c, pk, p))),
+            builder: (context, l, _) => SizedBox(width: size, height: size, child: CustomPaint(painter: _PandaPainter(l, c, pk, p))),
           ),
         ),
       ),
@@ -36,81 +36,99 @@ class LoginPip extends StatelessWidget {
   }
 }
 
-class _PipPainter extends CustomPainter {
+class _PandaPainter extends CustomPainter {
   final Offset look;
   final double cover;
   final double peek;
   final Palette p;
-  const _PipPainter(this.look, this.cover, this.peek, this.p);
+  const _PandaPainter(this.look, this.cover, this.peek, this.p);
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width;
     final ink = p.onSodium;
+    final fur = p.onHero;
     Paint fill(Color c) => Paint()..color = c;
+    Paint stroke(Color c, double w) => Paint()
+      ..color = c
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round;
     canvas.translate(size.width / 2, size.height / 2);
-    final bw = s * 0.74;
-    final bh = s * 0.86;
-    canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: bw, height: bh), Radius.circular(s * 0.14)), fill(p.sodium));
-    final hole = fill(ink.withValues(alpha: 0.28));
-    for (var i = 0; i < 4; i++) {
-      final y = -bh / 2 + bh * (0.14 + 0.24 * i);
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(-bw / 2 + s * 0.05, y, s * 0.07, s * 0.11), Radius.circular(s * 0.02)), hole);
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(bw / 2 - s * 0.12, y, s * 0.07, s * 0.11), Radius.circular(s * 0.02)), hole);
-    }
     for (final sx in const [-1.0, 1.0]) {
-      final e = Offset(sx * s * 0.17, -s * 0.12);
-      canvas.drawCircle(e, s * 0.11, fill(p.onHero));
-      canvas.drawCircle(e + Offset(look.dx * s * 0.045, look.dy * s * 0.04), s * 0.055, fill(ink));
-      canvas.drawCircle(Offset(sx * s * 0.29, s * 0.1), s * 0.05, fill(kPink.withValues(alpha: 0.5)));
+      canvas.drawCircle(Offset(sx * s * 0.31, -s * 0.33), s * 0.13, fill(ink));
     }
-    canvas.drawArc(
-      Rect.fromCenter(center: Offset(0, s * 0.17), width: s * 0.24, height: s * 0.14),
-      0.15,
-      math.pi - 0.3,
-      false,
-      Paint()
-        ..color = ink
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.035
-        ..strokeCap = StrokeCap.round,
-    );
+    final head = Rect.fromCircle(center: Offset.zero, radius: s * 0.4);
+    canvas.drawOval(head, fill(fur));
+    canvas.drawOval(head, stroke(ink.withValues(alpha: 0.25), s * 0.015));
+    for (final sx in const [-1.0, 1.0]) {
+      final e = Offset(sx * s * 0.15, -s * 0.02);
+      canvas.save();
+      canvas.translate(e.dx, e.dy);
+      canvas.rotate(sx * 0.35);
+      canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: s * 0.15, height: s * 0.2), fill(ink));
+      canvas.restore();
+      canvas.drawCircle(e + Offset(look.dx * s * 0.02, look.dy * s * 0.02), s * 0.042, fill(fur));
+      canvas.drawCircle(e + Offset(look.dx * s * 0.032, look.dy * s * 0.032), s * 0.019, fill(ink));
+      canvas.drawCircle(Offset(sx * s * 0.28, s * 0.12), s * 0.05, fill(kPink.withValues(alpha: 0.5)));
+    }
+    canvas.drawOval(Rect.fromCenter(center: Offset(0, s * 0.1), width: s * 0.11, height: s * 0.075), fill(ink));
+    canvas.drawArc(Rect.fromCenter(center: Offset(0, s * 0.17), width: s * 0.17, height: s * 0.09), 0.15, math.pi - 0.3, false, stroke(ink, s * 0.03));
     for (final sx in const [-1.0, 1.0]) {
       final c = sx < 0 ? cover : cover * (1 - peek);
-      final pos = Offset.lerp(Offset(sx * s * 0.30, s * 0.50), Offset(sx * s * 0.17, -s * 0.12), c)!;
-      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center: pos, width: s * 0.27, height: s * 0.2), Radius.circular(s * 0.09)), fill(ink));
+      final pos = Offset.lerp(Offset(sx * s * 0.3, s * 0.5), Offset(sx * s * 0.15, -s * 0.02), c)!;
+      final paw = Rect.fromCenter(center: pos, width: s * 0.22, height: s * 0.2);
+      canvas.drawOval(paw, fill(ink));
+      canvas.drawOval(paw, stroke(fur.withValues(alpha: 0.5), s * 0.012));
     }
   }
 
   @override
-  bool shouldRepaint(_PipPainter old) => old.look != look || old.cover != cover || old.peek != peek || old.p != p;
+  bool shouldRepaint(_PandaPainter old) => old.look != look || old.cover != cover || old.peek != peek || old.p != p;
 }
 
-/// The cutting-room lamp. Tap it (or flick the cord down) to switch the room on or off.
-class Lamp extends StatelessWidget {
+/// The cutting-room lamp. Pull the cord (drag it down), tap the lamp, or press any key to switch the room on.
+class Lamp extends StatefulWidget {
   final bool lit;
   final VoidCallback onToggle;
   const Lamp({super.key, required this.lit, required this.onToggle});
+
+  @override
+  State<Lamp> createState() => _LampState();
+}
+
+class _LampState extends State<Lamp> {
+  double _pull = 0;
+
+  void _release() {
+    final fire = _pull > 14;
+    setState(() => _pull = 0);
+    if (fire) widget.onToggle();
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = context.pal;
     return Semantics(
       button: true,
-      label: lit ? 'Turn the lamp off' : 'Turn the lamp on',
+      label: widget.lit ? 'Turn the lamp off' : 'Pull the cord to turn the lamp on and sign in',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: onToggle,
-          onVerticalDragEnd: (d) {
-            if ((d.primaryVelocity ?? 0) > 150) onToggle();
-          },
+          onTap: widget.onToggle,
+          onVerticalDragUpdate: (d) => setState(() => _pull = (_pull + d.delta.dy).clamp(0.0, 30.0).toDouble()),
+          onVerticalDragEnd: (_) => _release(),
+          onVerticalDragCancel: () => setState(() => _pull = 0),
           child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(end: lit ? 1.0 : 0.0),
-            duration: Duration(milliseconds: Fx.enabled ? 250 : 0),
+            tween: Tween<double>(end: widget.lit ? 1.0 : 0.0),
+            duration: Duration(milliseconds: Fx.enabled ? 700 : 0),
+            curve: Curves.easeOut,
             builder: (context, t, _) => Column(mainAxisSize: MainAxisSize.min, children: [
-              CustomPaint(size: const Size(180, 250), painter: _LampPainter(t, p)),
-              Opacity(opacity: 1 - t, child: Text('PULL THE CORD', style: context.ty.caption.copyWith(fontSize: 11, letterSpacing: 1.2, color: p.heroMute))),
+              CustomPaint(size: const Size(180, 250), painter: _LampPainter(t, p, _pull)),
+              Opacity(
+                opacity: 1 - t,
+                child: Text('PULL THE CORD TO SIGN IN', textAlign: TextAlign.center, style: context.ty.caption.copyWith(fontSize: 11, letterSpacing: 1.2, color: p.heroMute)),
+              ),
             ]),
           ),
         ),
@@ -122,7 +140,8 @@ class Lamp extends StatelessWidget {
 class _LampPainter extends CustomPainter {
   final double t;
   final Palette p;
-  const _LampPainter(this.t, this.p);
+  final double pull;
+  const _LampPainter(this.t, this.p, this.pull);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -141,12 +160,12 @@ class _LampPainter extends CustomPainter {
     canvas.drawPath(
         cone,
         Paint()
-          ..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [p.sodium.withValues(alpha: 0.38 * t), p.sodium.withValues(alpha: 0)])
+          ..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [p.sodium.withValues(alpha: 0.45 * t), p.sodium.withValues(alpha: 0)])
               .createShader(const Rect.fromLTWH(0, 112, 180, 136)));
     canvas.drawRect(const Rect.fromLTWH(86, 112, 8, 92), fill(p.heroMute.withValues(alpha: 0.6)));
     canvas.drawOval(const Rect.fromLTWH(55, 198, 70, 16), fill(p.heroMute.withValues(alpha: 0.6)));
-    canvas.drawLine(const Offset(138, 110), const Offset(138, 152), line(p.heroMute, 1.5));
-    canvas.drawCircle(const Offset(138, 156), 4, fill(Color.lerp(p.heroMute, p.sodium, t)!));
+    canvas.drawLine(const Offset(138, 110), Offset(138, 152 + pull), line(p.heroMute, 1.5));
+    canvas.drawCircle(Offset(138, 156 + pull), 5, fill(Color.lerp(p.sodium, p.heroMute, t * 0.6)!));
     final shade = Path()
       ..moveTo(62, 40)
       ..lineTo(118, 40)
@@ -166,5 +185,5 @@ class _LampPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_LampPainter old) => old.t != t || old.p != p;
+  bool shouldRepaint(_LampPainter old) => old.t != t || old.p != p || old.pull != pull;
 }

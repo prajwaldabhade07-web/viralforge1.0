@@ -7,6 +7,7 @@ import '../theme.dart';
 import '../util/evidence.dart';
 import '../util/format.dart';
 import '../util/platform.dart';
+import '../util/text.dart';
 import 'common.dart';
 import 'film.dart';
 import 'frame_strip.dart';
@@ -36,7 +37,7 @@ const _actionLabels = {
   'keep_scrolling': 'Would keep scrolling',
 };
 
-/// The screening room: reveal, video, sticky tabs, notes and the ten-seat cinema.
+/// The report: score, video, sticky tabs, fixes and the ten-seat audience.
 class ReportView extends StatefulWidget {
   final Report report;
   final Job job;
@@ -150,7 +151,7 @@ class _ReportViewState extends State<ReportView> {
                         _ScoreRow(
                           label: _scoreRows[i].$2,
                           score: scores[_scoreRows[i].$1] ?? 0,
-                          formula: r.formulas[_scoreRows[i].$1] ?? '',
+                          help: skillHelp[_scoreRows[i].$1] ?? '',
                         ),
                       ],
                     ]),
@@ -166,7 +167,7 @@ class _ReportViewState extends State<ReportView> {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const SectionTitle("What's costing you views"),
                   _Notes(items: r.recommendations),
-                  const SectionTitle('Strengths and weaknesses'),
+                  const SectionTitle('What works and what does not'),
                   LayoutBuilder(builder: (context, c) {
                     final p = context.pal;
                     final two = c.maxWidth > 720;
@@ -181,17 +182,17 @@ class _ReportViewState extends State<ReportView> {
               KeyedSubtree(
                 key: _keys[2],
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const SectionTitle('The screening room'),
+                  const SectionTitle('How ten viewers reacted'),
                   _PersonasSection(personas: r.personas),
                 ]),
               ),
               KeyedSubtree(
                 key: _keys[3],
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const SectionTitle('The seven ratings'),
+                  const SectionTitle('The seven ratings in detail'),
                   _Dimensions(items: r.dimensions),
                   if (r.observations.isNotEmpty) ...[
-                    const SectionTitle('Craft notes'),
+                    const SectionTitle('Moments in your video'),
                     _Observations(items: r.observations, canSeek: hasVideo, onSeek: _showVideoAt),
                   ],
                   const SizedBox(height: 28),
@@ -213,7 +214,7 @@ class _TabsDelegate extends SliverPersistentHeaderDelegate {
   final double pad;
   const _TabsDelegate({required this.report, required this.tab, required this.onTap, required this.pad});
 
-  static const labels = ['Scores', 'Fixes', 'Screening room', 'Details'];
+  static const labels = ['Scores', 'What to fix', 'Your audience', 'Details'];
 
   @override
   double get minExtent => 60;
@@ -379,6 +380,8 @@ class _ScoreBandState extends State<_ScoreBand> with SingleTickerProviderStateMi
                       semanticLabel: 'Overall score meter',
                     ),
                     const SizedBox(height: 14),
+                    Text(verdictHelp(r.overall), style: ty.bodyStrong.copyWith(color: p.onHero)),
+                    const SizedBox(height: 4),
                     Text(meta, style: TextStyle(color: p.heroMute, fontSize: 14)),
                   ]);
                 },
@@ -397,8 +400,8 @@ class _ScoreBandState extends State<_ScoreBand> with SingleTickerProviderStateMi
 class _ScoreRow extends StatelessWidget {
   final String label;
   final int score;
-  final String formula;
-  const _ScoreRow({required this.label, required this.score, required this.formula});
+  final String help;
+  const _ScoreRow({required this.label, required this.score, required this.help});
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +410,7 @@ class _ScoreRow extends StatelessWidget {
       final wide = c.maxWidth > 640;
       final labelBlock = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: ty.heading.copyWith(fontSize: 20)),
-        if (formula.isNotEmpty) Text(formula, style: ty.caption.copyWith(fontSize: 12.5)),
+        if (help.isNotEmpty) Text(help, style: ty.caption.copyWith(fontSize: 13)),
       ]);
       final numText = Text('$score', style: ty.title.copyWith(fontSize: 32, height: 1));
       final strip = FrameStrip(value: score.toDouble(), height: 18, animate: false, semanticLabel: '$label score $score out of 100');
@@ -658,7 +661,7 @@ class _Observations extends StatelessWidget {
   }
 }
 
-// ───────────────────────── Screening room ─────────────────────────
+// ───────────────────────── Audience ─────────────────────────
 
 class _PersonasSection extends StatelessWidget {
   final Personas personas;

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router.dart';
 import 'state/providers.dart';
+import 'state/text_scale.dart';
 import 'theme.dart';
 
 class ViralForgeApp extends ConsumerWidget {
@@ -12,6 +13,7 @@ class ViralForgeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accent = kAccents[ref.watch(accentProvider)].$2;
+    final scale = ref.watch(textScaleProvider);
     return MaterialApp.router(
       title: 'ViralForge',
       debugShowCheckedModeBanner: false,
@@ -19,6 +21,10 @@ class ViralForgeApp extends ConsumerWidget {
       darkTheme: buildTheme(webFonts: webFonts, brightness: Brightness.dark, accent: accent),
       themeMode: ref.watch(themeModeProvider),
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+        child: child ?? const SizedBox.shrink(),
+      ),
     );
   }
 }

@@ -9,8 +9,10 @@ import 'screens/analysis_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/forgot_password_screen.dart';
+import 'screens/help_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/new_analysis_screen.dart';
+import 'screens/new_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/project_screen.dart';
@@ -82,6 +84,7 @@ GoRouter buildRouter(AuthService auth) {
         builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
         routes: [
           GoRoute(path: '/dashboard', pageBuilder: (c, s) => _fade(c, s, const DashboardScreen())),
+          GoRoute(path: '/new', pageBuilder: (c, s) => _fade(c, s, const NewScreen())),
           GoRoute(path: '/projects', pageBuilder: (c, s) => _fade(c, s, const ProjectsScreen())),
           GoRoute(
             path: '/projects/:id',
@@ -99,6 +102,7 @@ GoRouter buildRouter(AuthService auth) {
           GoRoute(path: '/history', pageBuilder: (c, s) => _fade(c, s, const HistoryScreen())),
           GoRoute(path: '/profile', pageBuilder: (c, s) => _fade(c, s, const ProfileScreen())),
           GoRoute(path: '/settings', pageBuilder: (c, s) => _fade(c, s, const SettingsScreen())),
+          GoRoute(path: '/help', pageBuilder: (c, s) => _fade(c, s, const HelpScreen())),
         ],
       ),
     ],
