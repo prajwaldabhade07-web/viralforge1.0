@@ -57,7 +57,8 @@ void main() {
 
   testWidgets('recommendations can be ticked off', (tester) async {
     final api = apiWith(JobDetail(sampleJob(scores: sampleScores), Report(sampleReportJson())));
-    await open(tester, api);
+    // A tall surface so the fixes are on screen without scrolling under the pinned tab bar.
+    await pumpApp(tester, auth: FakeAuth(), api: api, location: '/analyses/j1', size: const Size(1200, 2400));
     expect(find.byTooltip('Mark as done'), findsNWidgets(2));
     await tester.tap(find.byTooltip('Mark as done').first);
     await tester.pump();

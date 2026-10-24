@@ -31,7 +31,7 @@ void main() {
     expect(find.text('Hook'), findsOneWidget);
     expect(find.text('Strongest'), findsOneWidget);
     expect(find.text('Needs work'), findsOneWidget);
-    expect(find.textContaining('Set '), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^Set \d')), findsOneWidget);
     expect(find.text('Spring recipes'), findsOneWidget);
   });
 
