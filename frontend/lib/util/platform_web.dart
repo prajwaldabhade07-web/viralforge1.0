@@ -2,6 +2,7 @@
 // Web implementation: localStorage, browser notifications and local video probing.
 import 'dart:async';
 import 'dart:html' as html;
+import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 
 import 'platform_types.dart';
@@ -74,4 +75,51 @@ void releaseObjectUrl(String url) {
   try {
     html.Url.revokeObjectUrl(url);
   } catch (_) {}
+}
+
+/// Saves [content] as a file through the browser's normal download (no server involved).
+Future<bool> downloadTextFile(String filename, String content, String mimeType) async {
+  try {
+    final blob = html.Blob([content], mimeType);
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    final link = html.AnchorElement(href: url)
+      ..download = filename
+      ..style.display = 'none';
+    html.document.body?.append(link);
+    link.click();
+    link.remove();
+    Timer(const Duration(seconds: 2), () => html.Url.revokeObjectUrl(url));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Opens the device's share sheet (phones, tablets and recent desktop browsers). Returns
+/// [ShareResult.unsupported] when the browser has none, so the caller can fall back to copying.
+Future<ShareResult> shareText(String title, String text) async {
+  try {
+    final nav = html.window.navigator;
+    if (!js_util.hasProperty(nav, 'share')) return ShareResult.unsupported;
+    await js_util.promiseToFuture<void>(
+      js_util.callMethod(nav, 'share', [js_util.jsify({'title': title, 'text': text})]),
+    );
+    return ShareResult.shared;
+  } catch (e) {
+    return '$e'.contains('AbortError') ? ShareResult.cancelled : ShareResult.unsupported;
+  }
+}
+
+/// Opens a standalone HTML page in a new tab (used with a page that prints itself, so people can
+/// choose "Save as PDF"). Returns false when the browser blocked the new tab.
+bool openPrintableHtml(String content) {
+  try {
+    final blob = html.Blob([content], 'text/html');
+    final url = html.Url.createObjectUrlFromBlob(blob);
+    html.window.open(url, '_blank');
+    Timer(const Duration(minutes: 1), () => html.Url.revokeObjectUrl(url));
+    return true;
+  } catch (_) {
+    return false;
+  }
 }

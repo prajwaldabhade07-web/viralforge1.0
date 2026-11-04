@@ -12,6 +12,7 @@ import '../util/platform.dart';
 import '../widgets/common.dart';
 import '../widgets/pip.dart';
 import '../widgets/report_view.dart';
+import '../widgets/share_menu.dart';
 
 class AnalysisScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -101,7 +102,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     }
   }
 
-  Widget _header(Job job) {
+  Widget _header(Job job, {Report? report}) {
     final p = context.pal;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -111,6 +112,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
           label: Text(job.projectName ?? 'Back to project'),
         ),
         TextButton(onPressed: () => context.go('/history'), child: const Text('All reports')),
+        if (report != null && !job.isActive) ShareReportButton(report: report, projectName: job.projectName),
         if (!job.isActive)
           IconButton(tooltip: 'Delete analysis', icon: Icon(Icons.delete_outline, color: p.mute), onPressed: () => _delete(job)),
       ]),
@@ -132,7 +134,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     final job = d.job;
     if (!job.isActive && job.status != 'failed' && d.report != null) {
       return Column(children: [
-        Expanded(child: ReportView(key: ValueKey(job.id), report: d.report!, job: job, header: _header(job))),
+        Expanded(child: ReportView(key: ValueKey(job.id), report: d.report!, job: job, header: _header(job, report: d.report))),
         const _NextBar(),
       ]);
     }

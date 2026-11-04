@@ -17,3 +17,9 @@ void notifyDone(String title, String body) {}
 Future<VideoProbe?> probeVideo(Uint8List bytes, String mime) async => null;
 
 void releaseObjectUrl(String url) {}
+
+Future<bool> downloadTextFile(String filename, String content, String mimeType) async => false;
+
+Future<ShareResult> shareText(String title, String text) async => ShareResult.unsupported;
+
+bool openPrintableHtml(String html) => false;

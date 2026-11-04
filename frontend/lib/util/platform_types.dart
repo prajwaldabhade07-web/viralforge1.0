@@ -4,3 +4,6 @@ class VideoProbe {
   final String url;
   const VideoProbe(this.seconds, this.url);
 }
+
+/// Outcome of asking the browser to open its share sheet.
+enum ShareResult { shared, cancelled, unsupported }
