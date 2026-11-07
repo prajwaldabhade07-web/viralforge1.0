@@ -2,7 +2,8 @@
 // Web implementation: localStorage, browser notifications and local video probing.
 import 'dart:async';
 import 'dart:html' as html;
-import 'dart:js_util' as js_util;
+import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'platform_types.dart';
@@ -99,11 +100,13 @@ Future<bool> downloadTextFile(String filename, String content, String mimeType) 
 /// [ShareResult.unsupported] when the browser has none, so the caller can fall back to copying.
 Future<ShareResult> shareText(String title, String text) async {
   try {
-    final nav = html.window.navigator;
-    if (!js_util.hasProperty(nav, 'share')) return ShareResult.unsupported;
-    await js_util.promiseToFuture<void>(
-      js_util.callMethod(nav, 'share', [js_util.jsify({'title': title, 'text': text})]),
-    );
+    final nav = globalContext['navigator'];
+    if (nav == null || !nav.isA<JSObject>()) return ShareResult.unsupported;
+    final navigator = nav as JSObject;
+    if (!navigator.has('share')) return ShareResult.unsupported;
+    final data = {'title': title, 'text': text}.jsify();
+    final result = navigator.callMethod<JSAny?>('share'.toJS, data);
+    if (result != null) await (result as JSPromise<JSAny?>).toDart;
     return ShareResult.shared;
   } catch (e) {
     return '$e'.contains('AbortError') ? ShareResult.cancelled : ShareResult.unsupported;

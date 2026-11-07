@@ -24,18 +24,14 @@ class Settings(BaseSettings):
     # Gemini
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.8-flash"
-    # Comma-separated models tried, in order, ONLY when the main model is overloaded (5xx),
-    # out of quota, or missing. The report records which model actually answered.
-    # Set empty (GEMINI_FALLBACK_MODELS=) to disable.
-    gemini_fallback_models: str = "gemini-2.5-flash"
-    # Video analysis can take well over two minutes on a busy model.
-    gemini_timeout_seconds: int = 300
+    gemini_timeout_seconds: int = 120
     gemini_file_ready_timeout_seconds: int = 300
     # Speed settings. Set to empty in .env to disable (e.g. GEMINI_THINKING_LEVEL=)
     gemini_thinking_level: str = "low"
     gemini_media_resolution: str = "low"
-    # Run the safety check and the analysis at the same time
-    parallel_moderation: bool = True
+    # Run the safety check and the analysis at the same time. Off by default: two simultaneous
+    # video requests hit rate limits and overloads more often, and a blocked video is stopped first.
+    parallel_moderation: bool = False
 
     # Upload limits
     max_upload_mb: int = 50
@@ -70,14 +66,6 @@ class Settings(BaseSettings):
     def extension_list(self) -> list[str]:
         return [
             e.strip().lower().lstrip(".") for e in self.allowed_extensions.split(",") if e.strip()
-        ]
-
-    @property
-    def fallback_model_list(self) -> list[str]:
-        return [
-            m.strip()
-            for m in self.gemini_fallback_models.split(",")
-            if m.strip() and m.strip() != self.gemini_model
         ]
 
     def missing_required(self) -> list[str]:

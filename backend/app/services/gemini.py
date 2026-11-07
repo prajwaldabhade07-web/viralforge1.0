@@ -5,6 +5,7 @@ Uses the official `google-genai` SDK. Model availability is verified through the
 """
 
 import logging
+import random
 import re
 import time
 from typing import Protocol, TypeVar
@@ -69,7 +70,7 @@ class GoogleGenaiGateway:
         model: str,
         timeout_s: int = 120,
         file_ready_timeout_s: int = 300,
-        max_attempts: int = 4,
+        max_attempts: int = 5,
         sleep=time.sleep,
         thinking_level: str = "",
         media_resolution: str = "",
@@ -79,6 +80,9 @@ class GoogleGenaiGateway:
 
         self._genai, self._types = genai, types
         self.model = model
+        # Google recommends leaving temperature at its default for Gemini 3 models (low values can
+        # make them loop or return empty/invalid output), so it is only sent for other models.
+        self._default_temp = "gemini-3" in model.lower()
         self.file_ready_timeout_s = file_ready_timeout_s
         self.max_attempts = max_attempts
         self._sleep = sleep
@@ -163,14 +167,15 @@ class GoogleGenaiGateway:
                 pass
         return out
 
-    def _make_config(self, system, temperature, schema, has_file):
+    def _make_config(self, system, temperature, schema, has_file, use_extras=True):
         base = dict(
             system_instruction=system,
-            temperature=temperature,
             response_mime_type="application/json",
             response_schema=schema,
         )
-        extras = self._extras(has_file)
+        if not getattr(self, "_default_temp", False):
+            base["temperature"] = temperature
+        extras = self._extras(has_file) if use_extras else {}
         try:
             return self._types.GenerateContentConfig(**base, **extras)
         except Exception:  # noqa: BLE001
@@ -185,8 +190,10 @@ class GoogleGenaiGateway:
         contents = [file, prompt] if file is not None else [prompt]
         repair_note = ""
         last_error = "unknown"
+        # Speed settings are dropped for the rest of this call if the API keeps failing.
+        use_extras = True
         for attempt in range(1, self.max_attempts + 1):
-            config = self._make_config(system, temperature, schema, file is not None)
+            config = self._make_config(system, temperature, schema, file is not None, use_extras)
             try:
                 resp = self.client.models.generate_content(
                     model=self.model,
@@ -195,7 +202,15 @@ class GoogleGenaiGateway:
                 )
                 text = (getattr(resp, "text", None) or "").strip()
                 if not text:
-                    raise MalformedResponse("empty response (possibly blocked by the provider)")
+                    declined = self._declined_reason(resp)
+                    if declined:
+                        raise ProviderError(
+                            "The AI provider's own safety filter declined to process this "
+                            f"content ({declined}), so nothing was analysed. Try a different video.",
+                            transient=False,
+                            kind="declined",
+                        )
+                    raise MalformedResponse("empty response from the AI")
                 text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
                 return schema.model_validate_json(text)
             except (ValidationError, MalformedResponse, ValueError) as e:
@@ -206,20 +221,70 @@ class GoogleGenaiGateway:
                     + last_error.replace("\n", " ")[:200]
                     + "). Reply again with valid JSON that matches the schema exactly."
                 )
+            except ProviderError:
+                raise
             except Exception as e:  # noqa: BLE001
-                if getattr(e, "code", None) == 400 and self._extras(file is not None):
+                if (
+                    getattr(e, "code", None) == 400
+                    and use_extras
+                    and self._extras(file is not None)
+                ):
                     log.warning("Gemini rejected the speed settings; retrying without them")
                     self._extras_ok = False
                     continue
                 err = self._classify(e)
+                # Log the real cause (provider text only, never user content).
+                log.warning(
+                    "Gemini call failed (attempt %d/%d): %s | %s",
+                    attempt,
+                    self.max_attempts,
+                    self._describe(e),
+                    str(e).replace("\n", " ")[:200],
+                )
                 if isinstance(err, ProviderError) and err.transient and attempt < self.max_attempts:
-                    wait = err.retry_after or min(2**attempt * 2, 20)
+                    if use_extras and attempt >= 2 and self._extras(file is not None):
+                        # Two server-side failures in a row: try again with plain settings.
+                        use_extras = False
+                        log.warning("Retrying Gemini without the speed settings")
+                    wait = err.retry_after or self._backoff(attempt)
                     self._sleep(min(wait, 60))
                     continue
                 raise err from e
         raise MalformedResponse(
             f"The AI returned an invalid response after {self.max_attempts} attempts: {last_error}"
         )
+
+    @staticmethod
+    def _declined_reason(resp) -> str | None:
+        """Name of the provider-side safety block (prompt or candidate), or None when the reply is
+        simply empty or cut off and is worth retrying."""
+        fb = getattr(resp, "prompt_feedback", None)
+        br = getattr(fb, "block_reason", None)
+        name = getattr(br, "name", None) or (str(br) if br else "")
+        if name and name != "BLOCK_REASON_UNSPECIFIED":
+            return name
+        for cand in getattr(resp, "candidates", None) or []:
+            fr = getattr(cand, "finish_reason", None)
+            fname = getattr(fr, "name", None) or (str(fr) if fr else "")
+            if fname in ("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"):
+                return fname
+        return None
+
+    @staticmethod
+    def _backoff(attempt: int) -> float:
+        """Patient, jittered waits (about 5, 15, 30, 45 s): overloaded models need time."""
+        return [5, 15, 30, 45][min(attempt - 1, 3)] + random.uniform(0, 2)
+
+    @staticmethod
+    def _describe(e: Exception) -> str:
+        parts = [type(e).__name__]
+        code = getattr(e, "code", None)
+        if code:
+            parts.append(str(code))
+        status = getattr(e, "status", None)
+        if isinstance(status, str) and status:
+            parts.append(status)
+        return " ".join(parts)
 
     def _classify(self, e: Exception) -> Exception:
         code = getattr(e, "code", None)
@@ -256,7 +321,9 @@ class GoogleGenaiGateway:
             or "timeout" in type(e).__name__.lower()
             or "connect" in type(e).__name__.lower()
         ):
-            return ProviderError("The AI service is busy or unreachable.", transient=True)
+            return ProviderError(
+                f"The AI service is busy or unreachable ({self._describe(e)}).", transient=True
+            )
         return ProviderError(
-            f"The AI service rejected the request ({type(e).__name__}).", transient=False
+            f"The AI service rejected the request ({self._describe(e)}).", transient=False
         )

@@ -95,6 +95,67 @@ def test_client_error_is_permanent_provider_error():
     assert e.value.transient is False and len(g.queue) == 1
 
 
+def test_repeated_server_errors_retry_without_speed_settings_and_report_the_code():
+    g = gateway([ApiErr(503), ApiErr(503), '{"x": 1}'], max_attempts=4)
+    g._extras_ok, g.thinking_level, g.media_resolution = True, "low", ""
+    g._types.ThinkingConfig = lambda **kw: kw
+    configs = []
+    real = g.client.models.generate_content
+
+    def spy(model, contents, config):
+        configs.append(config)
+        return real(model, contents, config)
+
+    g.client.models.generate_content = spy
+    assert run(g).x == 1
+    assert "thinking_config" in configs[0] and "thinking_config" in configs[1]
+    assert "thinking_config" not in configs[2]  # dropped after two server errors in a row
+    assert all(w >= 5 for w in g.sleeps)  # patient backoff, not a quick hammer
+
+    g = gateway([ApiErr(503)] * 2, max_attempts=2)
+    with pytest.raises(ProviderError) as e:
+        run(g)
+    assert "503" in str(e.value) and e.value.transient is True
+
+
+def test_gemini_3_models_use_default_temperature_other_models_do_not():
+    g = gateway(['{"x": 1}', '{"x": 1}'])
+    seen = []
+    real = g.client.models.generate_content
+
+    def spy(model, contents, config):
+        seen.append(dict(config))
+        return real(model, contents, config)
+
+    g.client.models.generate_content = spy
+    g._default_temp = True
+    run(g)
+    g._default_temp = False
+    run(g)
+    assert "temperature" not in seen[0] and seen[1]["temperature"] == 0.3
+
+
+def test_provider_safety_block_is_permanent_and_not_retried():
+    blocked = SimpleNamespace(
+        text=None, prompt_feedback=SimpleNamespace(block_reason=SimpleNamespace(name="SAFETY"))
+    )
+
+    class Resp:
+        text = None
+        prompt_feedback = blocked.prompt_feedback
+
+    g = gateway([])
+    g.client.models.generate_content = lambda model, contents, config: Resp()
+    with pytest.raises(ProviderError) as e:
+        run(g)
+    assert e.value.kind == "declined" and e.value.transient is False and g.sleeps == []
+
+
+def test_plain_empty_reply_is_retried_as_malformed():
+    g = gateway(["", '{"x": 5}'])
+    assert run(g).x == 5
+
+
 def test_check_model_messages():
     gateway([None]).check_model()
     with pytest.raises(ModelUnavailable) as e:

@@ -150,6 +150,47 @@ def test_persona_failure_does_not_fail_report_and_is_flagged():
     assert all(i["status"] == "missing" for i in p["items"])
 
 
+def test_failed_full_persona_reply_is_recovered_with_smaller_batches():
+    c, project, video, job, worker = env()
+    c.gemini.errors["PersonaSimulation"] = [MalformedResponse("bad json")]
+    c.gemini.persona_batches = [PERSONA_IDS[:5], PERSONA_IDS[5:]]
+    worker.run_once()
+    assert job_row(c, job["id"])["status"] == "completed"
+    p = report_for(c, job["id"])["report"]["personas"]
+    assert (p["status"], p["received"]) == ("complete", 10)
+    assert c.gemini.calls.count("PersonaSimulation") == 3
+
+
+def test_sequential_is_the_default_and_parallel_mode_still_works_and_blocks():
+    c, project, video, job, worker = env()
+    assert c.settings.parallel_moderation is False
+    worker.run_once()
+    assert c.gemini.calls[:2] == ["ModerationVerdict", "ContentAnalysis"]  # safety check first
+
+    c, project, video, job, worker = env(parallel_moderation=True)
+    worker.run_once()
+    assert job_row(c, job["id"])["status"] == "completed"
+    assert report_for(c, job["id"]) is not None
+
+    c, project, video, job, worker = env(parallel_moderation=True)
+    c.gemini.verdict = ModerationVerdict(allowed=False, categories=["graphic_violence"], reason="x")
+    worker.run_once()
+    row = job_row(c, job["id"])
+    assert (row["status"], row["error_code"]) == ("failed", "content_blocked")
+    assert report_for(c, job["id"]) is None
+
+
+def test_provider_safety_decline_fails_cleanly_without_retry_loop():
+    c, project, video, job, worker = env()
+    c.gemini.errors["ModerationVerdict"] = ProviderError(
+        "declined", transient=False, kind="declined"
+    )
+    worker.run_once()
+    row = job_row(c, job["id"])
+    assert (row["status"], row["error_code"]) == ("failed", "ai_declined")
+    assert report_for(c, job["id"]) is None
+
+
 def test_persistent_partial_personas_are_reported_as_partial():
     c, project, video, job, worker = env()
     c.gemini.persona_batches = [PERSONA_IDS[:3], PERSONA_IDS[3:5]]

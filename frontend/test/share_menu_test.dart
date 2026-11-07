@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:viralforge_experiment/api/api_client.dart';
 import 'package:viralforge_experiment/models.dart';
 
 import 'support.dart';
 
 void main() {
   testWidgets('a finished report offers share and download options', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, (call) async => null);
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
     final api = FakeApi()
       ..projects = [sampleProject()]
       ..analyses = {'j1': JobDetail(sampleJob(scores: sampleScores), Report(sampleReportJson()))};
@@ -20,7 +22,8 @@ void main() {
     expect(find.text('Download as text'), findsOneWidget);
     expect(find.text('Print or save as PDF'), findsOneWidget);
     await tester.tap(find.text('Copy summary'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // the message is a short-lived snack bar
     expect(find.textContaining('Summary copied'), findsOneWidget);
   });
 

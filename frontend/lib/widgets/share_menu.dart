@@ -17,8 +17,14 @@ class ShareReportButton extends StatelessWidget {
   const ShareReportButton({super.key, required this.report, this.projectName});
 
   Future<void> _copy(BuildContext context) async {
-    await Clipboard.setData(ClipboardData(text: reportShareText(report, projectName: projectName)));
-    if (context.mounted) toast(context, 'Summary copied. Paste it anywhere.');
+    var copied = true;
+    try {
+      await Clipboard.setData(ClipboardData(text: reportShareText(report, projectName: projectName)));
+    } catch (_) {
+      copied = false; // the browser can refuse clipboard access
+    }
+    if (!context.mounted) return;
+    toast(context, copied ? 'Summary copied. Paste it anywhere.' : "Couldn't copy here. Try Download report instead.");
   }
 
   Future<void> _run(BuildContext context, _Action a) async {

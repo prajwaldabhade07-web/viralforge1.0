@@ -3,7 +3,7 @@ to Gemini's response schema; ranges and completeness are enforced by the validat
 
 from typing import Literal
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
 from app.services.scoring import DIMENSION_KEYS
 
@@ -94,6 +94,25 @@ class ContentAnalysis(BaseModel):
         return self
 
 
+_ACTIONS = ("share", "like", "comment", "follow", "keep_scrolling")
+_CATEGORIES = set(ModerationCategory.__args__)  # type: ignore[attr-defined]
+
+
+def _clamp_int(v, lo: int, hi: int, what: str) -> int:
+    """Persona and moderation output is forgiving: a stray 0, 11 or 7.0 is repaired, not fatal."""
+    if isinstance(v, bool) or v is None:
+        raise ValueError(f"{what} must be a number")
+    try:
+        n = round(float(v))
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"{what} must be a number") from e
+    return max(lo, min(hi, n))
+
+
+def _text(v) -> str:
+    return "" if v is None else str(v)
+
+
 class PersonaReaction(BaseModel):
     persona_id: str
     first_impression: str
@@ -103,17 +122,94 @@ class PersonaReaction(BaseModel):
     reaction: str
     concern: str
 
-    @field_validator("interest_level")
+    @field_validator("persona_id", mode="before")
     @classmethod
-    def _i(cls, v: int) -> int:
-        return _in_range(v, 1, 10, "interest_level")
+    def _pid(cls, v):
+        return _text(v).strip()
+
+    @field_validator("first_impression", "reaction", "concern", mode="before")
+    @classmethod
+    def _strs(cls, v):
+        return _text(v)
+
+    @field_validator("interest_level", mode="before")
+    @classmethod
+    def _i(cls, v):
+        return _clamp_int(v, 1, 10, "interest_level")
+
+    @field_validator("likely_action", mode="before")
+    @classmethod
+    def _a(cls, v):
+        s = _text(v).strip().lower().replace("-", "_").replace(" ", "_")
+        if s in _ACTIONS:
+            return s
+        for a in _ACTIONS[:4]:
+            if a in s:
+                return a
+        return "keep_scrolling"
+
+    @field_validator("would_finish", mode="before")
+    @classmethod
+    def _w(cls, v):
+        return False if v is None else v
 
 
 class PersonaSimulation(BaseModel):
     reactions: list[PersonaReaction]
+
+    @field_validator("reactions", mode="before")
+    @classmethod
+    def _keep_usable(cls, v):
+        """One malformed reaction must not throw away the other nine: drop it (it is then reported
+        as missing and re-requested). Only a reply with no usable reaction at all is rejected."""
+        if not isinstance(v, list):
+            raise ValueError("reactions must be a list")
+        good = []
+        for item in v:
+            if isinstance(item, PersonaReaction):
+                good.append(item)
+                continue
+            try:
+                good.append(PersonaReaction.model_validate(item))
+            except ValidationError:
+                continue
+        if not good:
+            raise ValueError("no usable persona reactions")
+        return good
 
 
 class ModerationVerdict(BaseModel):
     allowed: bool
     categories: list[ModerationCategory]
     reason: str
+
+    @field_validator("allowed", mode="before")
+    @classmethod
+    def _allowed(cls, v):
+        if isinstance(v, str):
+            t = v.strip().lower()
+            if t in ("true", "yes", "allowed", "1"):
+                return True
+            if t in ("false", "no", "blocked", "0"):
+                return False
+        return v
+
+    @field_validator("categories", mode="before")
+    @classmethod
+    def _cats(cls, v):
+        if v is None:
+            return []
+        if isinstance(v, str):
+            v = [v]
+        out: list[str] = []
+        for c in v:
+            key = _text(c).strip().lower().replace("-", "_").replace(" ", "_")
+            key = key if key in _CATEGORIES else "other"
+            if key not in out:
+                out.append(key)
+        return out
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def _reason(cls, v):
+        return _text(v)

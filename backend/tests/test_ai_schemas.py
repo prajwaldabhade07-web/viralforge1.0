@@ -3,7 +3,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from app.ai_schemas import ContentAnalysis, ModerationVerdict, PersonaReaction
+from app.ai_schemas import ContentAnalysis, ModerationVerdict, PersonaReaction, PersonaSimulation
 from tests.fakes import good_analysis
 
 
@@ -35,7 +35,7 @@ def test_invalid_analysis_rejected(mutate):
         ContentAnalysis(**data)
 
 
-def test_persona_and_moderation_validation():
+def _reaction(**over):
     base = dict(
         persona_id="busy_parent",
         first_impression="x",
@@ -45,9 +45,41 @@ def test_persona_and_moderation_validation():
         reaction="x",
         concern="x",
     )
-    PersonaReaction(**base)
-    for bad in ({"interest_level": 0}, {"interest_level": 11}, {"likely_action": "buy"}):
-        with pytest.raises(ValidationError):
-            PersonaReaction(**{**base, **bad})
+    return {**base, **over}
+
+
+def test_persona_reaction_repairs_small_slips_instead_of_failing():
+    assert PersonaReaction(**_reaction(interest_level=0)).interest_level == 1
+    assert PersonaReaction(**_reaction(interest_level=11)).interest_level == 10
+    assert PersonaReaction(**_reaction(interest_level="7.0")).interest_level == 7
+    assert PersonaReaction(**_reaction(likely_action="Would Share")).likely_action == "share"
+    assert PersonaReaction(**_reaction(likely_action="buy")).likely_action == "keep_scrolling"
+    r = PersonaReaction(**_reaction(concern=None, first_impression=None, would_finish=None))
+    assert (r.concern, r.first_impression, r.would_finish) == ("", "", False)
     with pytest.raises(ValidationError):
-        ModerationVerdict(allowed=False, categories=["not_a_category"], reason="x")
+        PersonaReaction(**_reaction(interest_level="lots"))
+
+
+def test_persona_simulation_drops_unusable_reactions_but_keeps_the_rest():
+    data = {
+        "reactions": [_reaction(persona_id="a"), {"persona_id": "b"}, _reaction(persona_id="c")]
+    }
+    sim = PersonaSimulation.model_validate_json(json.dumps(data))
+    assert [r.persona_id for r in sim.reactions] == ["a", "c"]
+    with pytest.raises(ValidationError):
+        PersonaSimulation.model_validate_json(json.dumps({"reactions": [{"persona_id": "b"}]}))
+    with pytest.raises(ValidationError):
+        PersonaSimulation.model_validate_json(json.dumps({"reactions": []}))
+
+
+def test_moderation_verdict_is_forgiving_but_still_decides():
+    v = ModerationVerdict.model_validate_json(
+        '{"allowed": "false", "categories": ["Graphic Violence", "weird", "weird"], "reason": null}'
+    )
+    assert v.allowed is False and v.categories == ["graphic_violence", "other"] and v.reason == ""
+    v = ModerationVerdict.model_validate_json(
+        '{"allowed": true, "categories": null, "reason": "OK"}'
+    )
+    assert v.allowed is True and v.categories == []
+    with pytest.raises(ValidationError):
+        ModerationVerdict.model_validate_json('{"categories": [], "reason": "x"}')

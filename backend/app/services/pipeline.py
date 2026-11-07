@@ -22,7 +22,7 @@ from app.services.gemini import (
     ModelUnavailable,
     ProviderError,
 )
-from app.services.personas import failed_items, merge_reactions
+from app.services.personas import PERSONAS, merge_reactions
 from app.services.report import build_report
 from app.services.safety import detect_injection, sanitize_text
 from app.storage import Storage
@@ -71,7 +71,11 @@ class AnalysisPipeline:
                 self._progress(job, "uploading", 25)
                 gfile = self._call(lambda: self.gemini.upload_video(tmp_path, mime))
 
-            self._progress(job, "analyzing", 40)
+            if self.s.parallel_moderation:
+                self._progress(job, "analyzing", 40)
+            else:
+                # Safety check first; progress never goes backwards.
+                self._progress(job, "moderating", 35)
 
             def mod_fn():
                 return self.gemini.generate_json(
@@ -97,7 +101,6 @@ class AnalysisPipeline:
                     self._block(job, verdict)
                     return
             else:
-                self._progress(job, "moderating", 35)
                 verdict = self._call(mod_fn, stage="moderation")
                 if not verdict.allowed:
                     self._block(job, verdict)
@@ -189,10 +192,13 @@ class AnalysisPipeline:
         except ProviderError as e:
             if e.kind == "quota":
                 raise PipelineError("ai_quota_exceeded", str(e)) from e
+            if e.kind == "declined":
+                raise PipelineError("ai_declined", str(e)) from e
             if stage == "moderation":
                 raise PipelineError(
                     "moderation_unavailable",
-                    "The safety check could not be completed, so nothing was analysed. Retry in a moment.",
+                    "The safety check could not be completed, so nothing was analysed. Retry in a moment. "
+                    f"Reason: {e}",
                     transient=e.transient,
                 ) from e
             raise PipelineError("ai_service_unavailable", str(e), transient=e.transient) from e
@@ -224,52 +230,60 @@ class AnalysisPipeline:
             return verdict, f_ana.result()
 
     def _personas(self, ctx: dict, adict: dict):
+        """Ten viewer reactions. Never fails the report: whatever cannot be produced is reported as
+        missing. A failed or partial reply is retried in smaller batches before giving up."""
         summary = adict["content_summary"]
-        try:
-            sim = self._call(
-                lambda: self.gemini.generate_json(
-                    system=prompts.PERSONA_SYSTEM,
-                    prompt=prompts.persona_prompt(ctx, summary, adict),
-                    schema=PersonaSimulation,
-                    temperature=0.8,
-                ),
-                stage="personas",
-            )
-            reactions = [r.model_dump() for r in sim.reactions]
-            items, status, received = merge_reactions(reactions)
-            if status == "partial":
-                missing = [i["persona_id"] for i in items if i["status"] == "missing"]
-                try:
-                    more = self._call(
-                        lambda: self.gemini.generate_json(
-                            system=prompts.PERSONA_SYSTEM,
-                            prompt=prompts.persona_prompt(ctx, summary, adict, only_ids=missing),
-                            schema=PersonaSimulation,
-                            temperature=0.8,
-                        ),
-                        stage="personas",
-                    )
-                    items, status, received = merge_reactions(
-                        reactions + [r.model_dump() for r in more.reactions]
-                    )
-                except PipelineError:
-                    pass
-            note = (
-                None
-                if status == "complete"
-                else (
-                    f"Only {received} of 10 persona reactions could be produced. Missing personas are marked; "
-                    "the rest of the report is unaffected."
+        reactions: list[dict] = []
+        last_err: PipelineError | None = None
+
+        def ask(ids: list[str] | None) -> None:
+            nonlocal last_err
+            try:
+                sim = self._call(
+                    lambda: self.gemini.generate_json(
+                        system=prompts.PERSONA_SYSTEM,
+                        prompt=prompts.persona_prompt(ctx, summary, adict, only_ids=ids),
+                        schema=PersonaSimulation,
+                        temperature=0.7,
+                    ),
+                    stage="personas",
                 )
+                reactions.extend(r.model_dump() for r in sim.reactions)
+            except PipelineError as e:
+                last_err = e
+
+        def missing_ids() -> list[str]:
+            return [i["persona_id"] for i in merge_reactions(reactions)[0] if i["status"] != "ok"]
+
+        ask(None)
+        for round_no in range(2):
+            missing = missing_ids()
+            if not missing or (
+                last_err and last_err.code in ("ai_quota_exceeded", "model_unavailable")
+            ):
+                break
+            if round_no == 0 and len(missing) == len(PERSONAS):
+                # The whole reply failed: smaller requests are far more likely to succeed.
+                half = (len(missing) + 1) // 2
+                ask(missing[:half])
+                ask(missing[half:])
+            else:
+                ask(missing)
+
+        items, status, received = merge_reactions(reactions)
+        if status == "complete":
+            note = None
+        elif received == 0 and last_err is not None:
+            note = (
+                f"Persona simulation failed ({last_err.message}) "
+                "The rest of the report is unaffected."
             )
-            return items, status, received, note
-        except PipelineError as e:
-            return (
-                failed_items(),
-                "failed",
-                0,
-                f"Persona simulation failed ({e.message}) The rest of the report is unaffected.",
+        else:
+            note = (
+                f"Only {received} of 10 persona reactions could be produced. "
+                "Missing personas are marked; the rest of the report is unaffected."
             )
+        return items, status, received, note
 
     # ---- state transitions ------------------------------------------------------------------
     def _now(self) -> datetime:
