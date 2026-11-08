@@ -53,6 +53,7 @@ class AppShell extends ConsumerWidget {
     final p = context.pal;
     final size = MediaQuery.of(context).size;
     final running = ref.watch(activeJobsProvider).valueOrNull?.length ?? 0;
+    ref.read(projectsProvider); // warm up, so the Projects page opens instantly
 
     // Tell the user when an analysis finishes while they are somewhere else.
     ref.listen<AsyncValue<List<Job>>>(activeJobsProvider, (prev, next) {

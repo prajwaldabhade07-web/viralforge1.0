@@ -1,154 +1,216 @@
-# ViralForge Experimental
+<div align="center">
 
-AI-powered, **video-first** analysis of short-form content. Upload a clip, say where you will post it
-(Instagram Reels, TikTok or YouTube Shorts), and get a Viral Readiness Report based on what is actually in the
-video: five scores, strengths, weaknesses, prioritised fixes, craft notes and ten AI-simulated viewer reactions.
+# 🎬 ViralForge
 
-This is a standalone project. It shares nothing with any other ViralForge repository.
+### Know how your short video will land, before you post it.
+
+AI-powered, **video-first** readiness analysis for Instagram Reels, TikTok and YouTube Shorts.
+
+`Flutter Web` · `FastAPI` · `Supabase` · `Google Gemini`
+
+</div>
+
+---
+
+## What it does
+
+Upload a short clip, say where you will post it, and ViralForge watches the **actual video** and returns a
+**Viral Readiness Report**:
+
+| You get | Details |
+|---|---|
+| **5 scores** | Hook, Engagement, Retention, Shareability and an Overall score with a verdict |
+| **7 rated dimensions** | Each with a short explanation |
+| **Strengths and weaknesses** | What works and what holds the video back |
+| **Prioritised fixes** | Ordered by expected impact, with timestamps that jump the built-in player to the moment |
+| **10 simulated viewers** | Ten fixed AI personas react to the video, clearly labelled as simulations |
+| **Share and download** | Copy a summary, share it, download an HTML or text report, or print to PDF |
+
+> **Scores are computed by backend code, never by the AI.** The AI only rates the seven dimensions from 1 to 10;
+> the five scores are derived with fixed formulas, so results are reproducible and a prompt injection cannot set them.
+
+### Who it is for
+Creators, small businesses, social media managers and students who want objective feedback before they post.
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Flutter Web app] -->|REST + Supabase token| B[FastAPI backend]
+    B --> C[(Supabase: Auth, PostgreSQL + RLS, private Storage)]
+    B --> D[Background worker]
+    D -->|safety check, analysis, personas| E[Google Gemini]
+    D -->|scores + report| C
+    A -.polls status.-> B
+```
+
+The analysis runs as a background job with live progress:
+
+| Step | What happens | Progress |
+|---|---|---|
+| 1. Validate | File type read from the bytes, size and duration limits, stored in a private bucket | 5 % |
+| 2. Upload to Gemini | The clip is sent to the Gemini Files API | 25 % |
+| 3. Safety check | Moderation runs first and **fails closed**: if it cannot finish, nothing is analysed | 35 % |
+| 4. Analysis | Gemini rates the 7 dimensions | 50 % |
+| 5. Personas | 10 viewer reactions (retried in smaller batches if needed; never fails the report) | 80 % |
+| 6. Scoring | Backend computes the 5 scores and builds the report | 100 % |
+
+---
+
+## Tech stack
 
 | Part | Technology |
 |---|---|
 | Frontend | Flutter Web (Dart), Riverpod, go_router, Dio |
 | Backend | Python 3.11+, FastAPI, Pydantic v2 |
-| Auth / database / storage | Supabase (email+password auth, PostgreSQL with row level security, private bucket) |
-| AI | Google Gemini through the official `google-genai` SDK (model set in `.env`) |
+| Auth, database, storage | Supabase (email and password auth, PostgreSQL with row level security, private bucket) |
+| AI | Google Gemini through the official `google-genai` SDK (model chosen in `.env`) |
+| Tests | pytest, ruff, flutter analyze, flutter test (Gemini is mocked, so no API credits are used) |
 
-> **Read [docs/VERIFICATION.md](docs/VERIFICATION.md) first.** The code was written in an offline sandbox. It lists
-> exactly what was executed, what was not, and what you should expect to check on your machine.
+## Project layout
+
+```
+viralforge1.0/
+├── backend/            FastAPI app (routers, services, worker, tests)
+│   └── app/services/   gemini.py · pipeline.py · personas.py · scoring.py · safety.py · worker.py
+├── frontend/           Flutter Web app (screens, widgets, state, tests)
+├── supabase/setup.sql  Database schema, row level security, storage bucket
+├── scripts/            setup, run, test and diagnostic scripts
+└── docs/               API.md · SCORING.md · VERIFICATION.md
+```
 
 ---
 
-## 1. Prerequisites (Windows)
+## Quick start (Windows)
 
-1. **Python 3.11 or newer**: https://www.python.org/downloads/ (tick *Add python.exe to PATH*).
-2. **Flutter SDK 3.24 or newer** (stable, with web support): https://docs.flutter.dev/get-started/install/windows/web
-3. **Google Chrome**.
-4. A **Supabase** account (free plan is fine) and a **Gemini API key**.
+### Prerequisites
+1. **Python 3.11 or newer**: https://www.python.org/downloads/ (tick *Add python.exe to PATH*)
+2. **Flutter SDK** (stable, with web support): https://docs.flutter.dev/get-started/install/windows/web
+3. **Google Chrome**
+4. A **Supabase** account (free plan is fine) and a **Gemini API key**
 
-## 2. Unzip
-
-Unzip so the folder is `C:\Users\Admin\Desktop\viralforge-experiment` (any location works).
-
-## 3. One-time cloud setup (click by click)
+### 1. One-time cloud setup
 
 **Supabase**
-
-1. Open https://supabase.com/dashboard → **New project**. Choose a name, a database password and a region. Wait until it finishes provisioning.
-2. **Project Settings** (gear icon, bottom left) → **API** (or **API Keys**). Keep this page open; you need three values:
-   - **Project URL**
-   - the public key (**anon** or **publishable**)
-   - the secret key (**service_role** or **secret**)
-3. **SQL Editor** (left menu) → **New query**. Open `supabase\setup.sql` from this project in Notepad, copy everything, paste it into the editor and press **Run**. You should see *Success. No rows returned*. (It is safe to run again.)
-4. **Authentication** → **Sign In / Providers** → **Email**. For quick local testing you may switch **Confirm email** off; otherwise new accounts must click the emailed link before signing in.
-5. **Authentication** → **URL Configuration** → set **Site URL** to `http://localhost:5173`.
+1. Open https://supabase.com/dashboard → **New project**. Wait until it finishes provisioning.
+2. **Project Settings → API**. Keep this page open; you need three values: **Project URL**, the public key
+   (**anon** or **publishable**) and the secret key (**service_role** or **secret**).
+3. **SQL Editor → New query**. Paste the whole of `supabase\setup.sql` and press **Run**
+   (*Success. No rows returned*). It is safe to run again.
+4. **Authentication → Sign In / Providers → Email**. For quick local testing you may switch **Confirm email** off.
+5. **Authentication → URL Configuration** → set **Site URL** to `http://localhost:5173`.
 6. **Storage**: confirm a bucket named **videos** exists and is **Private**.
 
 **Gemini**
+1. Open https://aistudio.google.com/apikey → **Create API key**.
 
-1. Open https://aistudio.google.com/apikey → **Create API key**. Copy it.
-
-## 4. Configure and install
-
-Open PowerShell in the project folder:
+### 2. Configure and install
 
 ```powershell
-cd C:\Users\Admin\Desktop\viralforge-experiment
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1   # first run creates .env
+notepad .env                                                    # replace every YOUR_... placeholder
+powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1   # installs everything, ends with "Setup complete"
 ```
 
-The first run creates `.env` and tells you to fill it in. Then:
+> 🔒 Keys live only in your private `.env`. Never paste them into chat or commit them.
+
+### 3. Run (two terminals)
 
 ```powershell
-notepad .env
-```
-
-Replace every `YOUR_...` placeholder with your values (the file explains each one). Never paste them into chat.
-Run the setup script again; it installs everything and ends with `Setup complete`:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\setup.ps1
-```
-
-## 5. Run (two terminals)
-
-**Terminal 1: backend**
-```powershell
-.\scripts\run-backend.ps1
-```
-**Terminal 2: frontend** (opens Chrome at http://localhost:5173)
-```powershell
-.\scripts\run-frontend.ps1
+.\scripts\run-backend.ps1      # Terminal 1: API on http://localhost:8000
+.\scripts\run-frontend.ps1     # Terminal 2: opens Chrome on http://localhost:5173
 ```
 
 | URL | What it is |
 |---|---|
-| http://localhost:8000/api/v1/health | Liveness |
-| http://localhost:8000/api/v1/health/ready | **Readiness: checks config, database tables and that your Gemini key can use `GEMINI_MODEL`** |
-| http://localhost:8000/docs | Interactive API documentation (Swagger) |
 | http://localhost:5173 | The app |
+| http://localhost:8000/docs | Interactive API documentation (Swagger) |
+| http://localhost:8000/api/v1/health | Liveness |
+| http://localhost:8000/api/v1/health/ready | **Readiness**: config, database tables, and that your Gemini key can use `GEMINI_MODEL` |
 
-**Open `/health/ready` before testing the app.** If it says `degraded`, its `checks` section tells you what to fix.
-In particular, `gemini_model.ok = false` means `gemini-3.8-flash` is not available to your key: set `GEMINI_MODEL`
-in `.env` to a model your key can use and restart the backend. The app never silently switches models.
+**Open `/health/ready` before testing.** If it says `degraded`, its `checks` section tells you what to fix. If
+`gemini_model.ok = false`, set `GEMINI_MODEL` in `.env` to a model your key can use and restart the backend.
+The app never silently switches models.
 
-## 6. Use it
-
+### 4. Use it
 Register → create a project → **New analysis** → drop or choose a video (MP4, WebM or MOV, up to 90 s and 50 MB by
-default) → pick the platform, niche and audience → **Upload and analyse**. The status page updates live and you can
-leave it; finished reports live under the project and in **History**.
+default) → pick platform, niche and audience → **Upload and analyse**. The status page updates live and you can leave
+it; finished reports live under the project and in **History**.
 
-## 7. Tests
+---
+
+## Configuration
+
+Set in `.env` (the file explains every value). Restart the backend after changing it.
+
+| Variable | Purpose |
+|---|---|
+| `GEMINI_API_KEY` | Your Gemini key. Read only at start-up, so restart after changing it |
+| `GEMINI_MODEL` | The Gemini model to use. Must be available to your key |
+| `PARALLEL_MODERATION` | Optional. `false` (default) runs the safety check first, then the analysis. `true` runs both at once |
+| `MAX_UPLOAD_MB` | Upload size cap (default 50) |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase project |
+
+## Tests and diagnostics
 
 ```powershell
-.\scripts\test.ps1     # ruff, pytest, flutter analyze, flutter test (Gemini is mocked: no API credits used)
+.\scripts\test.ps1          # ruff, pytest, flutter analyze, flutter test
 ```
-Run one part: `cd backend; .\.venv\Scripts\python -m pytest -q` or `cd frontend; flutter test`.
+If PowerShell blocks the script, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first.
 
-## 8. Troubleshooting
+Check the AI on its own, with no website and no Supabase (uses a little of your Gemini quota):
+```powershell
+backend\.venv\Scripts\python.exe scripts\check_ai.py                  # model, safety check, analysis, personas
+backend\.venv\Scripts\python.exe scripts\check_ai.py "C:\path\clip.mp4"   # also tests the video upload
+```
+Every step prints `[ OK ]` or `[FAIL]` with the real reason. Other helpers: `check_config.py`, `check_gemini.py`,
+`check_models.py`.
+
+## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `Missing configuration: ...` when starting the backend | `.env` still has placeholders. Edit it and restart. |
-| Sign-in screen says it cannot reach the service | Check `SUPABASE_URL`/`SUPABASE_ANON_KEY`, then re-run `run-frontend.ps1` (it regenerates `frontend\config.json`). |
-| App shows "Cannot reach the ViralForge server" | Backend is not running, or `API_BASE_URL` / `CORS_ORIGINS` in `.env` do not match the ports in use. |
-| `/health/ready`: `database.ok = false` | `supabase\setup.sql` was not run (step 3.3), or `SUPABASE_URL` / service key are wrong. |
-| `/health/ready`: model not available | Change `GEMINI_MODEL` (see section 5). |
-| Upload says "Could not read the video's duration" | The file is fragmented or damaged. Re-export as a standard MP4 (H.264). |
-| Upload fails above 50 MB | Supabase's free plan caps single files at 50 MB. |
-| Registered but cannot sign in | Email confirmation is on: click the link in the email, or turn **Confirm email** off (step 3.4). |
-| PowerShell blocks scripts | Use the `powershell -ExecutionPolicy Bypass -File ...` form shown above. |
+| `Missing configuration: ...` when starting the backend | `.env` still has placeholders. Edit it and restart |
+| Sign-in screen cannot reach the service | Check `SUPABASE_URL` / `SUPABASE_ANON_KEY`, then re-run `run-frontend.ps1` |
+| "Cannot reach the ViralForge server" | Backend is not running, or `API_BASE_URL` / `CORS_ORIGINS` in `.env` do not match the ports in use |
+| Analysis fails with "AI service is busy or unreachable" | The message now includes the real cause (for example `503 UNAVAILABLE`). Run `scripts\check_ai.py`, check your key and `GEMINI_MODEL`, then press **Retry** |
+| Analysis fails with `ai_declined` | Gemini's own safety filter blocked this video. Try a different clip |
+| `/health/ready`: `database.ok = false` | `supabase\setup.sql` was not run, or the Supabase URL or service key is wrong |
+| Upload says "Could not read the video's duration" | The file is damaged. Re-export as a standard MP4 (H.264) |
+| Upload fails above 50 MB | Supabase's free plan caps single files at 50 MB |
+| Registered but cannot sign in | Email confirmation is on: click the emailed link, or turn **Confirm email** off |
 
-## 9. How it works
+---
 
-1. **Upload** (`POST /projects/{id}/videos`): the backend streams the file with a size cap, sniffs the real container
-   from its bytes (not the filename or MIME header), reads the duration, and stores it in a private bucket at
-   `{user}/{project}/{video}.ext`. Videos are only reachable through short-lived signed URLs after an ownership check.
-2. **Analysis** (`POST /projects/{id}/analyses`) returns `202` at once and creates a persistent `queued` job. A database
-   unique index allows only one active job per video.
-3. **Worker** (in-process thread, claims jobs with `FOR UPDATE SKIP LOCKED`): safety check → upload to Gemini Files
-   API → analysis → persona simulation → deterministic scoring → report saved. Transient provider errors are
-   re-queued with backoff; crashed jobs are recovered after a lease timeout; every state change is guarded so a
-   stale worker cannot overwrite a newer result.
-4. **Frontend** polls `GET /analyses/{id}` and renders the report when `status = completed`.
-
-Details: [docs/API.md](docs/API.md) (contract) and [docs/SCORING.md](docs/SCORING.md) (rubric, moderation, safety).
-
-## 10. Security notes
+## Security
 
 - The Supabase **service-role key** and the **Gemini key** exist only in the backend process. `frontend\config.json`
-  is generated with the public URL, public anon key and API URL only, and is git-ignored.
-- Every backend query is filtered by the authenticated user's id; other users' resources return `404`. Row level
-  security on all tables is a second layer; clients can only read their own rows and cannot write videos, jobs or reports.
+  holds only public values and is git-ignored.
+- Every query is filtered by the signed-in user; other users' resources return `404`. Row level security on all tables
+  is a second layer. Videos are private and reachable only through short-lived signed URLs.
 - Captions, scripts, niche text and anything inside the video are treated as untrusted data: sanitised, wrapped in
-  per-request random delimiters, and the model is told never to follow instructions found there. Scores are
-  computed by backend code, so a prompt injection cannot set them.
-- Moderation runs before analysis and **fails closed**: if the check cannot complete, nothing is analysed. Blocked
-  submissions are deleted (video, caption, script) and only the error code is kept.
+  per-request random delimiters, and the model is told never to follow instructions found there.
+- Moderation runs before analysis and **fails closed**. Blocked submissions are deleted and only the error code is kept.
 - Per-user rate limits apply (defaults: 120 requests/min, 20 uploads/hour, 20 analyses/hour).
+- Sharing a report never creates a public link: the summary and downloads are built in your browser from the report
+  you already have open.
 
-## 11. Known limits
+## Known limits
 
-- Single-process, in-memory rate limiter and worker: right for local use, not for multiple server instances.
-- Uploads pass through the backend and are held in memory (≤ `MAX_UPLOAD_MB`).
-- The server rejects over-length videos; the browser only pre-checks type and size.
-- Scores and personas are AI opinions, not predictions or audience research (the report says so).
+- The worker and rate limiter run in one process: right for local use, not for several server instances.
+- Uploads pass through the backend and are held in memory (up to `MAX_UPLOAD_MB`).
+- Scores and personas are AI opinions, not predictions or audience research. The report says so.
+
+## Documentation
+
+- [docs/API.md](docs/API.md): API contract
+- [docs/SCORING.md](docs/SCORING.md): rubric, formulas, moderation and safety
+- [docs/VERIFICATION.md](docs/VERIFICATION.md): what was verified and how
+
+---
+
+<div align="center">
+Built as a field project. Standalone: it shares nothing with any other ViralForge repository.
+</div>

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -36,16 +38,44 @@ final publicConfigProvider = FutureProvider<PublicConfig>((ref) async {
   }
 });
 
-final projectsProvider = FutureProvider.autoDispose<Paged<Project>>((ref) => ref.watch(apiProvider).listProjects());
+
+/// Keeps a screen's data in memory after the screen closes, so coming back shows it at once
+/// (no skeleton, no wait) while a fresh copy loads quietly in the background. The kept copy is
+/// dropped whenever the signed-in account changes, so one person's data is never shown to another.
+void _keepForQuickReturn(Ref ref) {
+  final link = ref.keepAlive();
+  final sub = ref.read(authServiceProvider).changes.listen((_) => link.close());
+  ref.onDispose(sub.cancel);
+  ref.onResume(() {
+    scheduleMicrotask(() {
+      try {
+        ref.invalidateSelf();
+      } catch (_) {}
+    });
+  });
+}
+
+final projectsProvider = FutureProvider.autoDispose<Paged<Project>>((ref) {
+  _keepForQuickReturn(ref);
+  return ref.watch(apiProvider).listProjects();
+});
 
 final projectProvider =
-    FutureProvider.autoDispose.family<Project, String>((ref, id) => ref.watch(apiProvider).getProject(id));
+    FutureProvider.autoDispose.family<Project, String>((ref, id) {
+  _keepForQuickReturn(ref);
+  return ref.watch(apiProvider).getProject(id);
+});
 
-final projectVideosProvider = FutureProvider.autoDispose.family<Paged<VideoItem>, String>(
-    (ref, id) => ref.watch(apiProvider).listVideos(id));
+final projectVideosProvider = FutureProvider.autoDispose.family<Paged<VideoItem>, String>((ref, id) {
+  _keepForQuickReturn(ref);
+  return ref.watch(apiProvider).listVideos(id);
+});
 
 final projectAnalysesProvider =
-    FutureProvider.autoDispose.family<Paged<Job>, String>((ref, id) => ref.watch(apiProvider).projectAnalyses(id));
+    FutureProvider.autoDispose.family<Paged<Job>, String>((ref, id) {
+  _keepForQuickReturn(ref);
+  return ref.watch(apiProvider).projectAnalyses(id);
+});
 
 /// Analyses that are queued or running right now (newest first). The shell polls this so a running analysis is always one tap away.
 final activeJobsProvider = FutureProvider.autoDispose<List<Job>>((ref) async {
@@ -147,6 +177,7 @@ class DashStats {
 }
 
 final dashboardStatsProvider = FutureProvider.autoDispose<DashStats>((ref) async {
+  _keepForQuickReturn(ref);
   final api = ref.watch(apiProvider);
   try {
     final page = await api.history(limit: 30);

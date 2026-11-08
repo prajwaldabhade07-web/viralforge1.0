@@ -38,18 +38,26 @@ class _AuthRefresh extends ChangeNotifier {
   }
 }
 
-/// Page changes cross-fade (200 ms, ease-out); instant when motion is off.
+/// Page changes fade in with a very small upward glide (240 ms, ease-out); instant when motion is off.
 Page<void> _fade(BuildContext context, GoRouterState state, Widget child) {
   final d = (Fx.enabled && !(MediaQuery.maybeOf(context)?.disableAnimations ?? false))
-      ? const Duration(milliseconds: 200)
+      ? const Duration(milliseconds: 240)
       : Duration.zero;
   return CustomTransitionPage<void>(
     key: state.pageKey,
     child: child,
     transitionDuration: d,
     reverseTransitionDuration: d,
-    transitionsBuilder: (context, anim, secondary, c) =>
-        FadeTransition(opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut), child: c),
+    transitionsBuilder: (context, anim, secondary, c) {
+      final curved = CurvedAnimation(parent: anim, curve: Curves.easeOutCubic, reverseCurve: Curves.easeIn);
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 0.015), end: Offset.zero).animate(curved),
+          child: c,
+        ),
+      );
+    },
   );
 }
 

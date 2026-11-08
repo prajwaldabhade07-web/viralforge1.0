@@ -64,6 +64,8 @@ class ProjectScreen extends ConsumerWidget {
     final anyActive = analyses.valueOrNull?.items.any((j) => j.isActive) ?? false;
     return PageFrame(
       child: project.when(
+        skipLoadingOnReload: true,
+        skipLoadingOnRefresh: true,
         loading: () => const SkeletonList(rows: 4),
         error: (e, _) => ErrorState(error: e, onRetry: () => _refresh(ref)),
         data: (p) {

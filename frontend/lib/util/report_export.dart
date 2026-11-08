@@ -255,7 +255,7 @@ String reportHtml(Report r, {String? projectName, bool autoPrint = false}) {
   return b.toString();
 }
 
-/// "viralforge-report-spring-recipes-2026-03-02.<ext>" - safe for every operating system.
+/// "viralforge-report-spring-recipes-2026-03-02.ext" - safe for every operating system.
 String reportFileName(Report r, {String? projectName, required String ext}) {
   final slug = (projectName ?? '')
       .toLowerCase()
