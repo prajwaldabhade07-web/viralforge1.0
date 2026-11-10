@@ -136,10 +136,19 @@ class AnalysisPipeline:
                 ),
             )
         finally:
+            # Clean-up must never break a job: a network blip while deleting the Gemini copy, or
+            # Windows still holding the temp file open, is only worth a log line.
             if gfile is not None:
-                self.gemini.delete_file(gfile)
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+                try:
+                    self.gemini.delete_file(gfile)
+                except Exception:  # noqa: BLE001
+                    log.warning("Could not delete the uploaded Gemini file for job %s", jid)
+            if tmp_path:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except OSError:
+                    log.warning("Could not remove the temporary video file for job %s", jid)
 
     # ---- steps ----------------------------------------------------------------------------
     def _prepare(self, job: dict) -> dict:

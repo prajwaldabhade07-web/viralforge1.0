@@ -9,6 +9,7 @@ import '../models.dart';
 import '../state/providers.dart';
 import '../theme.dart';
 import '../util/platform.dart';
+import '../widgets/celebration.dart';
 import '../widgets/common.dart';
 import '../widgets/pip.dart';
 import '../widgets/report_view.dart';
@@ -27,6 +28,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
   ApiException? _error;
   bool _offline = false;
   bool _busy = false;
+  bool _celebrate = false; // true only when this page watched the analysis finish
   Timer? _timer;
 
   @override
@@ -53,6 +55,7 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
         _offline = false;
       });
       if (wasActive && !d.job.isActive) {
+        if (d.job.status == 'completed' && d.report != null) _celebrate = true;
         notifyDone(d.job.status == 'completed' ? 'Your report is ready' : "Your analysis didn't finish", d.job.projectName ?? 'ViralForge');
         ref.invalidate(activeJobsProvider);
         ref.invalidate(dashboardStatsProvider);
@@ -133,10 +136,15 @@ class _AnalysisScreenState extends ConsumerState<AnalysisScreen> {
     }
     final job = d.job;
     if (!job.isActive && job.status != 'failed' && d.report != null) {
-      return Column(children: [
-        Expanded(child: ReportView(key: ValueKey(job.id), report: d.report!, job: job, header: _header(job, report: d.report))),
-        const _NextBar(),
-      ]);
+      return ReportReveal(
+        key: ValueKey('reveal-${job.id}'),
+        play: _celebrate,
+        onDone: () => _celebrate = false,
+        child: Column(children: [
+          Expanded(child: ReportView(key: ValueKey(job.id), report: d.report!, job: job, header: _header(job, report: d.report))),
+          const _NextBar(),
+        ]),
+      );
     }
     return PageFrame(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -183,7 +191,7 @@ const _stages = <(String, String)>[
   ('uploading', 'Sending it to the AI'),
   ('moderating', 'Running the safety check'),
   ('analyzing', 'Analysing the content'),
-  ('simulating_audience', 'Simulating audience reactions'),
+  ('simulating_audience', 'Simulating audience reactions with 10 fake AI personas (not real people)'),
   ('finalizing', 'Writing your report'),
 ];
 
@@ -277,6 +285,10 @@ class ProgressPanel extends StatelessWidget {
         Text('You can leave this page. The analysis keeps running and will be in your history.', style: ty.body.copyWith(color: p.mute)),
         const SizedBox(height: 4),
         Text('It usually takes 1 to 3 minutes.', style: ty.caption),
+        if (job.stage == 'simulating_audience') ...[
+          const SizedBox(height: 10),
+          const InlineMessage(MsgKind.info, 'The ten viewers are fake: AI-made personas that imagine how an audience might react. They are not real people and not real audience research.'),
+        ],
         const SizedBox(height: 14),
         Wrap(spacing: 10, runSpacing: 10, children: [
           FilledButton.icon(onPressed: () => context.go('/dashboard'), icon: const Icon(Icons.space_dashboard_outlined, size: 20), label: const Text('Go to dashboard')),

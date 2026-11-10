@@ -1,6 +1,11 @@
+import faulthandler
 import logging
+import sys
+import threading
 import uuid
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -28,11 +33,42 @@ def _error(request: Request, status: int, code: str, message: str, details=None,
     )
 
 
+def _enable_crash_log() -> None:
+    """Writes backend/logs/backend.log (rotating) and records uncaught errors and hard crashes,
+    so "the backend stopped" can always be explained afterwards. Never stops the app on failure."""
+    try:
+        logs = Path(__file__).resolve().parents[1] / "logs"
+        logs.mkdir(exist_ok=True)
+        root = logging.getLogger()
+        if not any(isinstance(h, RotatingFileHandler) for h in root.handlers):
+            fh = RotatingFileHandler(
+                logs / "backend.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+            )
+            fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+            root.addHandler(fh)
+        crash = open(logs / "crash.log", "a", buffering=1, encoding="utf-8")  # noqa: SIM115
+        faulthandler.enable(file=crash, all_threads=True)
+
+        def _thread_hook(args):
+            log.error(
+                "Uncaught error in thread %s",
+                getattr(args.thread, "name", "?"),
+                exc_info=(args.exc_type, args.exc_value, args.exc_traceback),
+            )
+
+        threading.excepthook = _thread_hook
+        sys.excepthook = lambda t, v, tb: log.error("Uncaught error", exc_info=(t, v, tb))
+    except Exception:  # noqa: BLE001
+        log.warning("Could not set up the crash log; continuing without it")
+
+
 def create_app(container: Container | None = None, *, start_worker: bool | None = None) -> FastAPI:
     settings = container.settings if container else get_settings()
     logging.basicConfig(
         level=settings.log_level.upper(), format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    if container is None:  # a real run (not a test): keep a crash log that survives the terminal
+        _enable_crash_log()
     for h in logging.getLogger().handlers:
         h.addFilter(RedactingFilter())
 
@@ -46,6 +82,7 @@ def create_app(container: Container | None = None, *, start_worker: bool | None 
         if settings.worker_enabled if start_worker is None else start_worker:
             worker = Worker(c)
             worker.start()
+            app.state.worker = worker
         yield
         if worker:
             worker.stop()

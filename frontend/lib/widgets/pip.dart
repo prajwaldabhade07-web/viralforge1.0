@@ -35,7 +35,7 @@ String moodCaption(PipMood m) {
     case PipMood.analysing:
       return 'Watching frame by frame, hook first.';
     case PipMood.personas:
-      return 'Setting out ten chairs for your audience.';
+      return 'Setting out ten chairs for ten pretend viewers (fake AI personas).';
     case PipMood.done:
       return 'Your report is ready.';
     case PipMood.failed:

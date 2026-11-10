@@ -275,3 +275,36 @@ def test_unique_index_blocks_two_active_jobs_per_video():
         pass
     c.repo.update("analysis_jobs", {"id": job["id"]}, {"status": "failed"})
     seed_job(c, project, video)  # allowed once the first is no longer active
+
+
+def test_cleanup_failures_do_not_break_a_finished_job(monkeypatch):
+    c, project, video, job, worker = env()
+
+    def boom(handle):
+        raise RuntimeError("network blip while deleting")
+
+    monkeypatch.setattr(c.gemini, "delete_file", boom)
+    assert worker.run_once() is True
+    assert job_row(c, job["id"])["status"] == "completed"
+
+
+def test_worker_thread_restarts_itself_after_an_unexpected_crash():
+    import time
+
+    c, project, video, job, worker = env()
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise SystemExit("simulated hard failure")  # not an Exception: the old loop would die
+        worker._stop.set()
+        return False
+
+    worker.run_once = flaky
+    worker._stop.wait = lambda timeout=None: None  # no real waiting in the test
+    t = __import__("threading").Thread(target=worker._supervised)
+    t.start()
+    t.join(timeout=5)
+    time.sleep(0)
+    assert not t.is_alive() and calls["n"] == 2

@@ -40,8 +40,23 @@ class Worker:
                 self._stop.wait(self.c.settings.worker_poll_seconds)
         log.info("Analysis worker stopped")
 
+    def _supervised(self):
+        """Keeps the worker alive: if the loop ever dies from something unexpected, log it and
+        start it again instead of leaving jobs queued forever with a healthy-looking server."""
+        while not self._stop.is_set():
+            try:
+                self._loop()
+                return
+            except BaseException:  # noqa: BLE001
+                log.exception("Analysis worker crashed; restarting in 5 seconds")
+                self._stop.wait(5)
+
+    @property
+    def alive(self) -> bool:
+        return bool(self._thread and self._thread.is_alive())
+
     def start(self):
-        self._thread = threading.Thread(target=self._loop, name="analysis-worker", daemon=True)
+        self._thread = threading.Thread(target=self._supervised, name="analysis-worker", daemon=True)
         self._thread.start()
 
     def stop(self):
